@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 15 (weRpadel — recherche de matchs agrégée, météo Open-Meteo, suggestion clubs les plus proches) — Backend 13/13 tests pytest passent, frontend Playwright 100% OK. GET /matches/open renvoie 13 matchs ouverts avec club_city+club_region ; filtre level=Confirmé réduit à 4 (auteurs Confirmés uniquement) ; filtre région et search (Toulouse) OK ; filtre date exclut les undated. GET /clubs/nearest?q=Rennes renvoie 6 clubs triés par distance croissante, 4PADEL Nantes en premier à ~100 km. GET /clubs/nearest?q=Paris renvoie clubs Île-de-France en premier. GET /clubs/{id}/weather : outdoor=true renvoie {outdoor:true, days:[...]} (Open-Meteo peut rate-limit → days:[] accepté, status 200 vérifié) ; indoor renvoie {outdoor:false, days:[]}. PATCH /clubs/{id} (exclude_unset) : marc admin toggle is_outdoor sans effacer price_per_hour=40, et update price_per_hour sans toucher is_outdoor ; julie reçoit 403. Frontend E2E (390x844) : login marc OK → tab bar (Clubs, Rechercher, Messages, Profil) visible → onglet Rechercher affiche 5 chips niveau, 4 chips date, 9 régions, 13 cartes, 10 boutons 'Rejoindre le match'. Filtre 'Confirmé' réduit à 4 cartes. Onglet Clubs + recherche 'Rennes' → nearest-banner 'Aucun club à « Rennes ». Voici les 6 clubs les plus proches :' + carte 4PADEL Nantes 'à ~100 km' + Padel Attitude 'à ~288 km'. /admin-clubs (marc admin) → 16 toggles admin-outdoor-<id> ; clic sur premier toggle bascule 'Terrain couvert / intérieur' ↔ 'Terrain extérieur (météo activée)' et persiste (revert testé). Détail Padel Riviera (outdoor) → onglet Infos affiche 'Type de terrain: Extérieur'. Bloc 'Météo à venir' NON affiché durant le test — comportement conforme à la note du review request (Open-Meteo rate-limité sur l'IP du pod → days:[] → carte cachée).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15.py",
+    "/app/test_reports/pytest/iter15_results.xml"
+  ],
+  "action_items": [
+    "Aucun blocage. Optionnel : la météo n'a pas été rendue visuellement dans le test (Open-Meteo a probablement renvoyé days:[]) — comportement voulu, mais si tu veux vérifier localement la carte 'Météo à venir', teste après un moment (cache Open-Meteo côté serveur ~1min) ou depuis une autre IP."
+  ],
+  "critical_code_review_comments": [
+    "server.py > open_matches: 4 boucles de conditions (level/region/search/date) + N+1 sur db.users.find_one(author) pour chaque annonce. Sur des volumes de 500+ annonces, envisager un $lookup ou un batch fetch des auteurs.",
+    "server.py > nearest_clubs: parcourt tous les clubs approuvés + N+1 announcements count_documents par club. OK pour <20 clubs (16 seedés), mais à watcher quand la base grossira.",
+    "server.py > fetch_forecast: pas de cache. Chaque GET /clubs/{id}/weather rappelle Open-Meteo — sensibilise au rate-limit sur IP partagée du pod. Ajouter un simple cache in-memory 10-15 min par (lat,lon) éviterait ce souci en preview.",
+    "search.tsx > load(): dépendance regions dans useCallback provoque une double-fetch au premier rendu (regions.length===0 puis re-render avec regions). Fonctionne mais un split useEffect(regions once) + useFocusEffect(matches) serait plus propre.",
+    "index.tsx > nearest fallback : ne se déclenche que quand !selectedRegion. Si l'utilisateur a une région sélectionnée + une ville qui n'existe pas, aucun fallback n'est proposé (comportement volontaire ou à discuter côté produit).",
+    "admin-clubs.tsx > toggleOutdoor: pas d'ActivityIndicator pendant l'appel réseau (bascule optimiste + revert en cas d'erreur). Fonctionne, mais un utilisateur qui double-clique rapidement pourrait perturber l'état — envisager un savingId sur outdoor également."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15.py"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100%"},
+  "seed_data_creation": "1 annonce TEST_iter15_dated_xxxxxx créée sur le premier club (Casa Padel ou similaire) pendant les tests backend pour valider le filtre date. Impact fonctionnel négligeable, à nettoyer si souhaité. Prix de '4PADEL Lyon' set à 40€/h (partait de null), is_outdoor=false ; 'Winners Padel' price=40€/h (partait de null), is_outdoor=true conservé. Reset manuel possible via /admin-clubs si besoin.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "testIDs vérifiés côté frontend : search-input, search-clear, filter-level-<Niveau>, filter-date-<Label>, filter-region-<Region>|filter-region-Toutes, search-match-<id>, search-author-<id>, search-join-<id> ; clubs-search-input, region-chip-all, region-chip-<name>, view-list-btn, view-map-btn, nearest-banner, club-card-<id> ; admin-club-<id>, admin-price-input-<id>, admin-save-<id>, admin-outdoor-<id>, admin-back. Endpoints iter15 confirmés : GET /api/matches/open (query: level,date,region,search) ; GET /api/clubs/nearest (query: q,limit) ; GET /api/clubs/{id}/weather ; PATCH /api/clubs/{id} (body: price_per_hour?, is_outdoor?). Seed startup marque Padel Riviera & Winners Padel comme outdoor si aucun n'est marqué. Rate-limit Open-Meteo sur IP pod peut renvoyer days:[] — gérer côté UI comme 'pas de bloc météo' (déjà fait).",
+  "rca_of_issue": "N/A — vérification de fonctionnalité. Tous les critères d'acceptation du review_request sont satisfaits."
+}

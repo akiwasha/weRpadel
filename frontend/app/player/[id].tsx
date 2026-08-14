@@ -68,7 +68,7 @@ export default function PlayerProfile() {
           <View style={{ width: 40 }} />
         ) : (
           <Pressable testID="favorite-btn" onPress={toggleFav} style={styles.favBtn}>
-            <Ionicons name={isFav ? "heart" : "heart-outline"} size={24} color={isFav ? colors.error : colors.onSurfaceSecondary} />
+            <Ionicons name={isFav ? "heart" : "heart-outline"} size={24} color={isFav ? colors.info : colors.onSurfaceSecondary} />
           </Pressable>
         )}
       </View>

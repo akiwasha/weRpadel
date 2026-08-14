@@ -88,7 +88,7 @@ export default function ProfileScreen() {
           <Text style={styles.title}>Mon profil</Text>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <Pressable testID="favorites-btn" onPress={() => router.push("/favorites")} style={styles.editBtn}>
-              <Ionicons name="heart" size={18} color={colors.error} />
+              <Ionicons name="heart" size={18} color={colors.info} />
             </Pressable>
             <Pressable testID="edit-profile-btn" onPress={() => router.push("/edit-profile")} style={styles.editBtn}>
               <Ionicons name="pencil" size={18} color={colors.brandPrimary} />

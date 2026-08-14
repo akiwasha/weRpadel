@@ -7,7 +7,7 @@ import { api } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
-type Club = { id: string; name: string; city: string; region: string; price_per_hour: number | null };
+type Club = { id: string; name: string; city: string; region: string; price_per_hour: number | null; is_outdoor?: boolean };
 
 export default function AdminClubs() {
   const router = useRouter();
@@ -42,6 +42,18 @@ export default function AdminClubs() {
     finally { setSavingId(null); }
   };
 
+  const toggleOutdoor = async (club: Club) => {
+    const next = !club.is_outdoor;
+    setClubs((prev) => prev.map((x) => (x.id === club.id ? { ...x, is_outdoor: next } : x)));
+    try {
+      const updated = await api.adminSetClubOutdoor(club.id, next);
+      setClubs((prev) => prev.map((x) => (x.id === club.id ? { ...x, is_outdoor: updated.is_outdoor } : x)));
+    } catch (e) {
+      console.log(e);
+      setClubs((prev) => prev.map((x) => (x.id === club.id ? { ...x, is_outdoor: !next } : x)));
+    }
+  };
+
   if (!user?.is_admin) {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -59,7 +71,7 @@ export default function AdminClubs() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} testID="admin-back"><Ionicons name="chevron-back" size={26} color={colors.onSurface} /></Pressable>
-        <Text style={styles.title}>Tarifs des clubs</Text>
+        <Text style={styles.title}>Tarifs & type de clubs</Text>
         <View style={{ width: 26 }} />
       </View>
       {loading ? (
@@ -71,24 +83,40 @@ export default function AdminClubs() {
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xxxl }}
           renderItem={({ item }) => (
             <View style={styles.row} testID={`admin-club-${item.id}`}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.city}>{item.city} · {item.region}</Text>
+              <View style={styles.rowTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.city}>{item.city} · {item.region}</Text>
+                </View>
+                <View style={styles.priceWrap}>
+                  <TextInput
+                    testID={`admin-price-input-${item.id}`}
+                    value={prices[item.id] ?? ""}
+                    onChangeText={(t) => setPrices((p) => ({ ...p, [item.id]: t }))}
+                    placeholder="€/h"
+                    placeholderTextColor={colors.onSurfaceTertiary}
+                    keyboardType="decimal-pad"
+                    style={styles.input}
+                  />
+                  <Pressable testID={`admin-save-${item.id}`} onPress={() => save(item)} style={styles.saveBtn} disabled={savingId === item.id}>
+                    {savingId === item.id ? <ActivityIndicator color={colors.onBrandPrimary} size="small" /> : <Ionicons name="checkmark" size={18} color={colors.onBrandPrimary} />}
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.priceWrap}>
-                <TextInput
-                  testID={`admin-price-input-${item.id}`}
-                  value={prices[item.id] ?? ""}
-                  onChangeText={(t) => setPrices((p) => ({ ...p, [item.id]: t }))}
-                  placeholder="€/h"
-                  placeholderTextColor={colors.onSurfaceTertiary}
-                  keyboardType="decimal-pad"
-                  style={styles.input}
+              <Pressable
+                testID={`admin-outdoor-${item.id}`}
+                onPress={() => toggleOutdoor(item)}
+                style={[styles.outdoorChip, item.is_outdoor && styles.outdoorChipOn]}
+              >
+                <Ionicons
+                  name={item.is_outdoor ? "sunny" : "home"}
+                  size={16}
+                  color={item.is_outdoor ? colors.onBrandPrimary : colors.onSurfaceSecondary}
                 />
-                <Pressable testID={`admin-save-${item.id}`} onPress={() => save(item)} style={styles.saveBtn} disabled={savingId === item.id}>
-                  {savingId === item.id ? <ActivityIndicator color={colors.onBrandPrimary} size="small" /> : <Ionicons name="checkmark" size={18} color={colors.onBrandPrimary} />}
-                </Pressable>
-              </View>
+                <Text style={[styles.outdoorText, item.is_outdoor && styles.outdoorTextOn]}>
+                  {item.is_outdoor ? "Terrain extérieur (météo activée)" : "Terrain couvert / intérieur"}
+                </Text>
+              </Pressable>
             </View>
           )}
         />
@@ -103,10 +131,19 @@ const styles = StyleSheet.create({
   title: { fontSize: type.xl, fontWeight: "800", color: colors.onSurface },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   denied: { color: colors.onSurfaceSecondary, fontSize: type.base },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+  row: { flexDirection: "column", gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+  rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   name: { fontSize: type.base, fontWeight: "800", color: colors.onSurface },
   city: { fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
   priceWrap: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   input: { width: 72, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 8, fontSize: type.base, color: colors.onSurface, textAlign: "center", borderWidth: 1, borderColor: colors.border },
   saveBtn: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  outdoorChip: {
+    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
+    backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
+    paddingHorizontal: spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: colors.border,
+  },
+  outdoorChipOn: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  outdoorText: { fontSize: type.sm, fontWeight: "700", color: colors.onSurfaceSecondary },
+  outdoorTextOn: { color: colors.onBrandPrimary },
 });

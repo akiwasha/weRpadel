@@ -67,12 +67,26 @@ export default function MatchHistory() {
   const [ratingsMap, setRatingsMap] = useState<Record<string, number>>({});
   const [savingRating, setSavingRating] = useState(false);
   const [weeklyId, setWeeklyId] = useState<string | null>(null);
+  const [weatherByClub, setWeatherByClub] = useState<Record<string, { outdoor: boolean; days: any[] }>>({});
   const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const m = await api.matchHistory();
       setMatches(m);
+      // Fetch weather for outdoor clubs of upcoming dated matches
+      const clubIds = Array.from(new Set(
+        m.filter((x: Match) => x.status === "upcoming" && x.match_date).map((x: Match) => x.club_id)
+      ));
+      setWeatherByClub((prev) => {
+        clubIds.forEach((cid) => {
+          if (prev[cid]) return;
+          api.clubWeather(cid as string)
+            .then((w) => setWeatherByClub((p) => ({ ...p, [cid as string]: w })))
+            .catch(() => {});
+        });
+        return prev;
+      });
       if (!autoOpenedRef.current) {
         const pending = m.find((x: Match) => x.can_rate);
         if (pending) {
@@ -150,8 +164,15 @@ export default function MatchHistory() {
     );
   };
 
-  const rateCoPlayers = rateFor ? rateFor.players.filter((p) => p.id !== user?.id) : [];
-  const allRated = rateCoPlayers.length > 0 && rateCoPlayers.every((p) => ratingsMap[p.id] > 0);
+  const rateCoPlayers = rateFor ? rateFor.players.filter((p) => p.id !== user?.id) : [];  const allRated = rateCoPlayers.length > 0 && rateCoPlayers.every((p) => ratingsMap[p.id] > 0);
+
+  const matchWeather = (item: Match) => {
+    const w = weatherByClub[item.club_id];
+    if (!w || !w.outdoor || !item.match_date) return null;
+    const d = new Date(item.match_date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return (w.days || []).find((x: any) => x.date === key) || null;
+  };
 
   const doRate = async () => {
     if (!rateFor || !allRated) return;
@@ -234,6 +255,18 @@ export default function MatchHistory() {
               </View>
 
               <Text style={styles.content} numberOfLines={2}>{item.content}</Text>
+
+              {item.status === "upcoming" && (() => {
+                const wd = matchWeather(item);
+                return wd ? (
+                  <View style={styles.weatherChip} testID={`match-weather-${item.id}`}>
+                    <Ionicons name={wd.icon} size={16} color={colors.info} />
+                    <Text style={styles.weatherChipText}>
+                      {wd.label}{wd.temp_max != null ? ` · ${wd.temp_max}°` : ""}{wd.precipitation != null ? ` · 💧 ${wd.precipitation}%` : ""}
+                    </Text>
+                  </View>
+                ) : null;
+              })()}
 
               <Text style={styles.playersLabel}>Joueurs présents</Text>
               <View style={styles.playersWrap}>
@@ -455,6 +488,11 @@ const styles = StyleSheet.create({
   open: { backgroundColor: colors.surfaceTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 5 },
   openText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.sm },
   content: { fontSize: type.base, color: colors.onSurface, lineHeight: 20 },
+  weatherChip: {
+    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
+    backgroundColor: colors.infoMuted, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
+  },
+  weatherChipText: { color: colors.onInfoMuted, fontWeight: "700", fontSize: type.sm },
   playersLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700", marginTop: spacing.xs },
   playersWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   playerChip: {

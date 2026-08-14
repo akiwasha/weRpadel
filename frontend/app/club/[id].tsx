@@ -38,6 +38,18 @@ type Announcement = {
 
 const LEVEL_FILTERS = ["Tous", "Débutant", "Intermédiaire", "Confirmé", "Expert"];
 
+function frDay(dateStr: string): string {
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((dt.getTime() - today.getTime()) / 86400000);
+    if (diff === 0) return "Auj.";
+    if (diff === 1) return "Dem.";
+    return dt.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "");
+  } catch { return ""; }
+}
+
 export default function ClubDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -56,13 +68,15 @@ export default function ClubDetail() {
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [weather, setWeather] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [c, a] = await Promise.all([api.getClub(id), api.announcements(id)]);
+      const [c, a, w] = await Promise.all([api.getClub(id), api.announcements(id), api.clubWeather(id).catch(() => ({ days: [] }))]);
       setClub(c);
       setItems(a);
+      setWeather(w?.days || []);
     } catch (e) { console.log(e); }
     finally { setLoading(false); }
   }, [id]);
@@ -173,6 +187,40 @@ export default function ClubDetail() {
               <Text style={styles.infoValue}>{club.announcements_count}</Text>
             </View>
           </View>
+
+          <View style={styles.infoCard}>
+            <Ionicons name={club.is_outdoor ? "sunny-outline" : "home-outline"} size={20} color={colors.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoLabel}>Type de terrain</Text>
+              <Text style={styles.infoValue}>{club.is_outdoor ? "Extérieur" : "Couvert / intérieur"}</Text>
+            </View>
+          </View>
+
+          {club.is_outdoor && weather.length > 0 && (
+            <View style={styles.weatherCard}>
+              <View style={styles.priceHead}>
+                <Ionicons name="partly-sunny" size={18} color={colors.info} />
+                <Text style={styles.priceTitle}>Météo à venir</Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}>
+                {weather.slice(0, 7).map((d) => (
+                  <View key={d.date} style={styles.weatherDay} testID={`weather-day-${d.date}`}>
+                    <Text style={styles.weatherDow}>{frDay(d.date)}</Text>
+                    <Ionicons name={d.icon} size={26} color={colors.info} />
+                    <Text style={styles.weatherTemp}>{d.temp_max != null ? `${d.temp_max}°` : "—"}</Text>
+                    <Text style={styles.weatherTempMin}>{d.temp_min != null ? `${d.temp_min}°` : ""}</Text>
+                    {d.precipitation != null && (
+                      <View style={styles.rainRow}>
+                        <Ionicons name="water" size={10} color={colors.info} />
+                        <Text style={styles.rainText}>{d.precipitation}%</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+              <Text style={styles.priceHint}>Prévisions Open-Meteo · terrain extérieur</Text>
+            </View>
+          )}
 
           {club.price_per_hour != null && (
             <View style={styles.priceCard}>
@@ -527,6 +575,13 @@ const styles = StyleSheet.create({
   infoLabel: { color: colors.onSurfaceTertiary, fontSize: type.sm, fontWeight: "700" },
   infoValue: { color: colors.onSurface, fontSize: type.lg, fontWeight: "700", marginTop: 2 },
   priceCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  weatherCard: { backgroundColor: colors.infoMuted, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.xs },
+  weatherDay: { alignItems: "center", gap: 2, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minWidth: 62 },
+  weatherDow: { fontSize: type.sm, fontWeight: "800", color: colors.onSurfaceSecondary, textTransform: "capitalize" },
+  weatherTemp: { fontSize: type.base, fontWeight: "800", color: colors.onSurface, marginTop: 2 },
+  weatherTempMin: { fontSize: 11, fontWeight: "700", color: colors.onSurfaceTertiary },
+  rainRow: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 1 },
+  rainText: { fontSize: 10, fontWeight: "700", color: colors.info },
   priceHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   priceTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface },
   priceHeaderRow: { flexDirection: "row", paddingBottom: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border, marginTop: spacing.xs },

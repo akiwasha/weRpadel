@@ -144,6 +144,7 @@ class ClubOut(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     price_per_hour: Optional[float] = None
+    is_outdoor: bool = False
     approved: bool
     announcements_count: int = 0
 
@@ -314,6 +315,108 @@ def match_status(match_date: Optional[str], match_end_date: Optional[str] = None
     if dt <= now <= end:
         return "ongoing"
     return "past"
+
+# ============ WEATHER (Open-Meteo, no API key) ============
+# WMO weather code -> (French label, Ionicons name)
+WMO_CODES = {
+    0: ("Ciel dégagé", "sunny"),
+    1: ("Plutôt dégagé", "partly-sunny"),
+    2: ("Partiellement nuageux", "partly-sunny"),
+    3: ("Couvert", "cloudy"),
+    45: ("Brouillard", "cloudy"),
+    48: ("Brouillard givrant", "cloudy"),
+    51: ("Bruine légère", "rainy"),
+    53: ("Bruine", "rainy"),
+    55: ("Bruine dense", "rainy"),
+    56: ("Bruine verglaçante", "rainy"),
+    57: ("Bruine verglaçante", "rainy"),
+    61: ("Pluie faible", "rainy"),
+    63: ("Pluie", "rainy"),
+    65: ("Forte pluie", "rainy"),
+    66: ("Pluie verglaçante", "rainy"),
+    67: ("Pluie verglaçante", "rainy"),
+    71: ("Neige faible", "snow"),
+    73: ("Neige", "snow"),
+    75: ("Forte neige", "snow"),
+    77: ("Grains de neige", "snow"),
+    80: ("Averses", "rainy"),
+    81: ("Averses", "rainy"),
+    82: ("Fortes averses", "rainy"),
+    85: ("Averses de neige", "snow"),
+    86: ("Averses de neige", "snow"),
+    95: ("Orage", "thunderstorm"),
+    96: ("Orage, grêle", "thunderstorm"),
+    99: ("Orage, grêle", "thunderstorm"),
+}
+
+import math
+
+async def geocode_city(name: str) -> Optional[dict]:
+    """Resolve a French city/place name to coordinates via Open-Meteo geocoding (no key)."""
+    if not name or not name.strip():
+        return None
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {"name": name.strip(), "count": 1, "language": "fr", "country": "FR"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            resp = await c.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning(f"Geocoding failed: {e}")
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    r = results[0]
+    return {"name": r.get("name"), "lat": r.get("latitude"), "lon": r.get("longitude")}
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+async def fetch_forecast(lat: float, lon: float, days: int = 7) -> list:
+    """Return a list of daily forecasts for the next `days` days (Europe/Paris)."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+        "timezone": "Europe/Paris",
+        "forecast_days": max(1, min(days, 16)),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            resp = await c.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning(f"Open-Meteo fetch failed: {e}")
+        return []
+    daily = data.get("daily") or {}
+    times = daily.get("time") or []
+    codes = daily.get("weather_code") or []
+    tmax = daily.get("temperature_2m_max") or []
+    tmin = daily.get("temperature_2m_min") or []
+    precip = daily.get("precipitation_probability_max") or []
+    out = []
+    for i, d in enumerate(times):
+        code = codes[i] if i < len(codes) else 0
+        label, icon = WMO_CODES.get(code, ("—", "partly-sunny"))
+        out.append({
+            "date": d,  # YYYY-MM-DD
+            "code": code,
+            "label": label,
+            "icon": icon,
+            "temp_max": round(tmax[i]) if i < len(tmax) and tmax[i] is not None else None,
+            "temp_min": round(tmin[i]) if i < len(tmin) and tmin[i] is not None else None,
+            "precipitation": precip[i] if i < len(precip) and precip[i] is not None else None,
+        })
+    return out
 
 # ============ PUSH NOTIFICATIONS (Emergent managed) ============
 async def send_push(recipients: List[str], data: dict, idempotency_key: Optional[str] = None) -> None:
@@ -570,6 +673,24 @@ async def list_regions(_=Depends(current_user)):
     regions = await db.clubs.distinct("region", {"approved": True})
     return sorted(regions)
 
+@api_router.get("/clubs/nearest")
+async def nearest_clubs(q: str, limit: int = 6, user=Depends(current_user)):
+    """Given a city/place name, return the nearest approved clubs by distance."""
+    coords = await geocode_city(q)
+    if not coords or coords.get("lat") is None:
+        return {"city": None, "clubs": []}
+    lat, lon = coords["lat"], coords["lon"]
+    clubs = await db.clubs.find({"approved": True}, {"_id": 0}).to_list(500)
+    scored = []
+    for c in clubs:
+        if c.get("latitude") is None or c.get("longitude") is None:
+            continue
+        c["distance_km"] = round(haversine_km(lat, lon, c["latitude"], c["longitude"]))
+        c["announcements_count"] = await db.announcements.count_documents({"club_id": c["id"]})
+        scored.append(c)
+    scored.sort(key=lambda x: x["distance_km"])
+    return {"city": coords.get("name"), "clubs": scored[:max(1, min(limit, 20))]}
+
 @api_router.get("/clubs/{club_id}")
 async def get_club(club_id: str, _=Depends(current_user)):
     c = await db.clubs.find_one({"id": club_id}, {"_id": 0})
@@ -598,17 +719,21 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
     club["announcements_count"] = 0
     return club
 
-class ClubPriceUpdate(BaseModel):
+class ClubAdminUpdate(BaseModel):
     price_per_hour: Optional[float] = Field(default=None, ge=0, le=200)
+    is_outdoor: Optional[bool] = None
 
 @api_router.patch("/clubs/{club_id}")
-async def admin_update_club(club_id: str, body: ClubPriceUpdate, user=Depends(current_user)):
+async def admin_update_club(club_id: str, body: ClubAdminUpdate, user=Depends(current_user)):
     if not is_admin_user(user):
         raise HTTPException(403, "Réservé aux administrateurs")
     club = await db.clubs.find_one({"id": club_id})
     if not club:
         raise HTTPException(404, "Club introuvable")
-    await db.clubs.update_one({"id": club_id}, {"$set": {"price_per_hour": body.price_per_hour}})
+    # exclude_unset so untouched fields are preserved (price can still be explicitly set to null)
+    updates = body.model_dump(exclude_unset=True)
+    if updates:
+        await db.clubs.update_one({"id": club_id}, {"$set": updates})
     updated = await db.clubs.find_one({"id": club_id}, {"_id": 0})
     return updated
 
@@ -686,6 +811,80 @@ async def matches_history(user=Depends(current_user)):
         s = await serialize_announcement(a, user)
         if s["author"]:
             out.append(s)
+    return out
+
+@api_router.get("/clubs/{club_id}/weather")
+async def club_weather(club_id: str, _=Depends(current_user)):
+    club = await db.clubs.find_one({"id": club_id})
+    if not club:
+        raise HTTPException(404, "Club introuvable")
+    if not club.get("is_outdoor"):
+        return {"outdoor": False, "days": []}
+    lat, lon = club.get("latitude"), club.get("longitude")
+    if lat is None or lon is None:
+        return {"outdoor": True, "days": []}
+    days = await fetch_forecast(lat, lon, days=7)
+    return {"outdoor": True, "days": days}
+
+@api_router.get("/matches/open")
+async def open_matches(
+    level: Optional[str] = None,
+    date: Optional[str] = None,
+    region: Optional[str] = None,
+    search: Optional[str] = None,
+    user=Depends(current_user),
+):
+    """Open matches (not full) across all clubs — upcoming or undated — with optional filters."""
+    # Target calendar day (Europe/Paris) if a date filter is provided
+    target_day = None
+    if date:
+        try:
+            target_day = datetime.fromisoformat(date.replace("Z", "+00:00")).astimezone(PARIS_TZ).date()
+        except Exception:
+            target_day = None
+
+    items = await db.announcements.find({}, {"_id": 0}).sort("match_date", 1).to_list(500)
+    clubs_cache: dict = {}
+    out = []
+    for a in items:
+        status = match_status(a.get("match_date"), a.get("match_end_date"))
+        if status not in ("upcoming", "undated"):
+            continue
+        club = clubs_cache.get(a["club_id"])
+        if club is None:
+            club = await db.clubs.find_one({"id": a["club_id"]})
+            clubs_cache[a["club_id"]] = club
+        if not club or not club.get("approved"):
+            continue
+        if region and club.get("region") != region:
+            continue
+        if search:
+            s = search.lower()
+            if s not in (club.get("name", "").lower()) and s not in (club.get("city", "").lower()):
+                continue
+        author = await db.users.find_one({"id": a["author_id"]})
+        if not author:
+            continue
+        if level and level != "Tous" and author.get("level") != level:
+            continue
+        if target_day is not None:
+            raw = a.get("match_date")
+            if not raw:
+                continue
+            try:
+                d = datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(PARIS_TZ).date()
+            except Exception:
+                continue
+            if d != target_day:
+                continue
+        s = await serialize_announcement(a, user, club)
+        if s["is_full"] or not s["author"]:
+            continue
+        s["club_city"] = club.get("city")
+        s["club_region"] = club.get("region")
+        out.append(s)
+    # Sort: dated (soonest first) then undated
+    out.sort(key=lambda x: (x.get("match_date") is None, x.get("match_date") or ""))
     return out
 
 @api_router.post("/clubs/{club_id}/announcements")
@@ -988,10 +1187,20 @@ async def on_startup():
                 "id": str(uuid.uuid4()),
                 "approved": True,
                 "price_per_hour": None,
+                "is_outdoor": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 **c,
             })
     logger.info("Ensured real clubs seeded")
+
+    # Ensure every club has an is_outdoor flag (default: indoor)
+    await db.clubs.update_many({"is_outdoor": {"$exists": False}}, {"$set": {"is_outdoor": False}})
+    # Mark a couple of demo outdoor clubs so weather is visible (only until an admin sets any)
+    if await db.clubs.count_documents({"is_outdoor": True}) == 0:
+        await db.clubs.update_many(
+            {"name": {"$in": ["Padel Riviera", "Winners Padel"]}},
+            {"$set": {"is_outdoor": True}},
+        )
 
     # seed demo users
     AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"

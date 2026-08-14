@@ -39,7 +39,7 @@ export default function Favorites() {
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
       ) : favs.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="heart-outline" size={64} color={colors.onSurfaceTertiary} />
+          <Ionicons name="heart-outline" size={64} color={colors.info} />
           <Text style={styles.emptyTitle}>Aucun favori</Text>
           <Text style={styles.emptySub}>Touche le ❤️ sur le profil d’un joueur pour le retrouver ici</Text>
         </View>
@@ -62,7 +62,7 @@ export default function Favorites() {
                 <Text style={styles.name}>{item.pseudo}</Text>
                 <Text style={styles.meta}>{item.level} · ⭐ {item.reliability_avg.toFixed(1)}</Text>
               </View>
-              <Ionicons name="heart" size={20} color={colors.error} />
+              <Ionicons name="heart" size={20} color={colors.info} />
               <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
             </Pressable>
           )}

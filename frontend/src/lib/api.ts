@@ -41,6 +41,18 @@ export const api = {
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),
   adminSetClubPrice: (id: string, price: number | null) =>
     request(`/clubs/${id}`, { method: "PATCH", body: JSON.stringify({ price_per_hour: price }) }),
+  adminSetClubOutdoor: (id: string, is_outdoor: boolean) =>
+    request(`/clubs/${id}`, { method: "PATCH", body: JSON.stringify({ is_outdoor }) }),
+  clubWeather: (id: string) => request(`/clubs/${id}/weather`),
+  openMatches: (filters?: { level?: string; date?: string; region?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (filters?.level && filters.level !== "Tous") q.set("level", filters.level);
+    if (filters?.date) q.set("date", filters.date);
+    if (filters?.region) q.set("region", filters.region);
+    if (filters?.search) q.set("search", filters.search);
+    const qs = q.toString();
+    return request(`/matches/open${qs ? "?" + qs : ""}`);
+  },
   getUser: (id: string) => request(`/users/${id}`),
   rateUser: (id: string, stars: number) => request(`/users/${id}/rate`, { method: "POST", body: JSON.stringify({ stars }) }),
   toggleFavorite: (id: string) => request(`/users/${id}/favorite`, { method: "POST" }),
@@ -53,6 +65,7 @@ export const api = {
     return request(`/clubs${qs ? "?" + qs : ""}`);
   },
   regions: () => request("/clubs/regions"),
+  nearestClubs: (q: string, limit = 6) => request(`/clubs/nearest?q=${encodeURIComponent(q)}&limit=${limit}`),
   getClub: (id: string) => request(`/clubs/${id}`),
   createClub: (body: any) => request("/clubs", { method: "POST", body: JSON.stringify(body) }),
   announcements: (clubId: string) => request(`/clubs/${clubId}/announcements`),

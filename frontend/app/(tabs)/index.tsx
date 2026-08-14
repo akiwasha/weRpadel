@@ -18,6 +18,7 @@ type Club = {
   latitude?: number | null;
   longitude?: number | null;
   announcements_count: number;
+  distance_km?: number | null;
 };
 
 export default function ClubsScreen() {
@@ -29,6 +30,8 @@ export default function ClubsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [nearest, setNearest] = useState<Club[]>([]);
+  const [nearestCity, setNearestCity] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +41,17 @@ export default function ClubsScreen() {
       ]);
       setClubs(c);
       setRegions(r);
+      // No club matches the typed city → suggest the geographically nearest ones
+      if (c.length === 0 && search.trim() && !selectedRegion) {
+        try {
+          const res = await api.nearestClubs(search.trim());
+          setNearest(res.clubs || []);
+          setNearestCity(res.city || null);
+        } catch { setNearest([]); setNearestCity(null); }
+      } else {
+        setNearest([]);
+        setNearestCity(null);
+      }
     } catch (e) {
       console.log("clubs err", e);
     } finally {
@@ -71,6 +85,12 @@ export default function ClubsScreen() {
           <Ionicons name="location" size={14} color={colors.onBrandPrimary} />
           <Text style={styles.cardCity}>{item.city} · {item.region}</Text>
         </View>
+        {item.distance_km != null && (
+          <View style={styles.distanceBadge}>
+            <Ionicons name="navigate" size={12} color={colors.onInfoMuted} />
+            <Text style={styles.distanceText}>à ~{item.distance_km} km</Text>
+          </View>
+        )}
         {item.announcements_count > 0 && (
           <View style={styles.badge}>
             <View style={styles.badgeDot} />
@@ -167,13 +187,31 @@ export default function ClubsScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
       ) : clubs.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="tennisball-outline" size={64} color={colors.onSurfaceTertiary} />
-          <Text style={styles.emptyTitle}>Aucun club trouvé</Text>
-          <Pressable style={styles.suggestBtn} onPress={() => router.push("/suggest-club")}>
-            <Text style={styles.suggestBtnText}>Suggérer un club</Text>
-          </Pressable>
-        </View>
+        nearest.length > 0 ? (
+          <FlatList
+            data={nearest}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCard}
+            ListHeaderComponent={
+              <View style={styles.nearestBanner} testID="nearest-banner">
+                <Ionicons name="navigate-circle" size={20} color={colors.info} />
+                <Text style={styles.nearestText}>
+                  Aucun club à « {search.trim()} »{nearestCity ? "" : ""}. Voici les {nearest.length} club{nearest.length > 1 ? "s" : ""} les plus proches :
+                </Text>
+              </View>
+            }
+            contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.lg }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.brandPrimary} />}
+          />
+        ) : (
+          <View style={styles.center}>
+            <Ionicons name="tennisball-outline" size={64} color={colors.onSurfaceTertiary} />
+            <Text style={styles.emptyTitle}>Aucun club trouvé</Text>
+            <Pressable style={styles.suggestBtn} onPress={() => router.push("/suggest-club")}>
+              <Text style={styles.suggestBtnText}>Suggérer un club</Text>
+            </Pressable>
+          </View>
+        )
       ) : (
         <FlatList
           data={clubs}
@@ -248,6 +286,17 @@ const styles = StyleSheet.create({
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.onBrandPrimary },
   badgeText: { color: colors.onBrandPrimary, fontSize: type.sm, fontWeight: "700" },
+  distanceBadge: {
+    alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: colors.infoMuted, borderRadius: radius.pill,
+    paddingHorizontal: 10, paddingVertical: 4, marginTop: spacing.xs,
+  },
+  distanceText: { color: colors.onInfoMuted, fontSize: type.sm, fontWeight: "800" },
+  nearestBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.infoMuted, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.xs,
+  },
+  nearestText: { flex: 1, color: colors.onInfoMuted, fontSize: type.sm, fontWeight: "700", lineHeight: 18 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
   emptyTitle: { fontSize: type.lg, color: colors.onSurfaceSecondary, fontWeight: "700" },
   suggestBtn: { backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: 12 },
