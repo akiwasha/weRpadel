@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 12 — PadelConnect: nouveaux champs privés à l'inscription (first_name, last_name, phone, birth_date, city). Backend: 12/12 pytest passés (register avec 5 nouveaux champs OK, register sans champs -> 422, /auth/me & login retournent les champs privés, PUT /auth/me met à jour et persiste, comptes seed marc/julie/thomas/sophie retournent champs privés=null sans erreur). CONFIDENTIALITÉ vérifiée: GET /api/users/{id} (vu par un autre user) et GET /api/clubs/{id}/announcements (author + players) NE FUITENT PAS email/first_name/last_name/phone/birth_date/city — seuls pseudo/avatar/level/reliability/verified/is_favorite/bio sont exposés. E2E Frontend (mobile 375x667): (1) form signup avec tous les champs demandés + validation date invalide -> 'Date de naissance invalide (JJ/MM/AAAA)'; (2) inscription valide -> redirect vers l'app + auth; (3) carte 'Mes infos (privées)' du profil affiche correctement Nom (Jean Dupont), Email, Téléphone (0612345678), Naissance (15/05/1990), Ville (Paris); (4) edit-profile pré-remplit les champs privés, MAJ ville/téléphone persiste et se reflète immédiatement dans le profil.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/test_reports/pytest/iter12_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py fait ~1030 lignes — envisager modularisation (auth/, users/, clubs/, announcements/, messages/) dans une future itération, mais non bloquant.",
+    "user_public()/user_me() correctement séparés — pas de fuite dans les endpoints publics (vérifié en tests)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (E2E signup + profile + edit)"},
+  "seed_data_creation": "Un utilisateur E2E créé par test (email e2e_<timestamp>@padel.fr) — non nettoyé mais isolé par timestamp.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Champs privés (first_name/last_name/phone/birth_date/city) exposés UNIQUEMENT via /auth/me (login/register/GET/PUT). Endpoints publics (users/{id}, announcements author/players) utilisent user_public() qui n'inclut PAS ces champs. testIDs sign-up: signup-firstname-input, signup-lastname-input, signup-pseudo-input, signup-email-input, signup-phone-input, signup-birth-input, signup-city-input, signup-password-input, signup-submit-button, signup-error. testIDs edit-profile: edit-firstname, edit-lastname, edit-phone, edit-birth, edit-city, edit-save.",
+  "rca_of_issue": "N/A — aucun bug détecté sur cette itération."
+}

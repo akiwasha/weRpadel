@@ -90,6 +90,11 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=72)
     pseudo: str = Field(min_length=2, max_length=30)
+    first_name: str = Field(min_length=1, max_length=80)
+    last_name: str = Field(min_length=1, max_length=80)
+    phone: str = Field(min_length=6, max_length=32)
+    birth_date: str = Field(min_length=4, max_length=10)  # YYYY-MM-DD
+    city: str = Field(min_length=1, max_length=80)
 
 class LoginInput(BaseModel):
     email: EmailStr
@@ -108,12 +113,22 @@ class UserPublic(BaseModel):
 
 class UserMe(UserPublic):
     email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    birth_date: Optional[str] = None
+    city: Optional[str] = None
 
 class ProfileUpdate(BaseModel):
     pseudo: Optional[str] = None
     avatar_url: Optional[str] = None
     level: Optional[str] = None
     bio: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    birth_date: Optional[str] = None
+    city: Optional[str] = None
 
 class ClubOut(BaseModel):
     id: str
@@ -254,6 +269,18 @@ def user_public(u: dict, viewer: Optional[dict] = None) -> dict:
         "bio": u.get("bio"),
     }
 
+def user_me(u: dict) -> dict:
+    # Private view for the authenticated user only (never exposed publicly)
+    return {
+        **user_public(u),
+        "email": u["email"],
+        "first_name": u.get("first_name"),
+        "last_name": u.get("last_name"),
+        "phone": u.get("phone"),
+        "birth_date": u.get("birth_date"),
+        "city": u.get("city"),
+    }
+
 def match_status(match_date: Optional[str], match_end_date: Optional[str] = None) -> str:
     if not match_date:
         return "undated"
@@ -375,6 +402,11 @@ async def register(body: RegisterInput):
         "pseudo": body.pseudo,
         "pseudo_lower": body.pseudo.lower(),
         "password_hash": hash_pw(body.password),
+        "first_name": body.first_name.strip(),
+        "last_name": body.last_name.strip(),
+        "phone": body.phone.strip(),
+        "birth_date": body.birth_date.strip(),
+        "city": body.city.strip(),
         "avatar_url": None,
         "level": "Débutant",
         "bio": None,
@@ -384,7 +416,7 @@ async def register(body: RegisterInput):
     }
     await db.users.insert_one(user)
     token = make_token(user_id)
-    return {"token": token, "user": {**user_public(user), "email": email}}
+    return {"token": token, "user": user_me(user)}
 
 @api_router.post("/auth/login")
 async def login(body: LoginInput):
@@ -392,11 +424,11 @@ async def login(body: LoginInput):
     if not user or not check_pw(body.password, user["password_hash"]):
         raise HTTPException(401, "Email ou mot de passe incorrect")
     token = make_token(user["id"])
-    return {"token": token, "user": {**user_public(user), "email": user["email"]}}
+    return {"token": token, "user": user_me(user)}
 
 @api_router.get("/auth/me")
 async def me(user=Depends(current_user)):
-    return {**user_public(user), "email": user["email"]}
+    return user_me(user)
 
 @api_router.put("/auth/me")
 async def update_me(body: ProfileUpdate, user=Depends(current_user)):
@@ -414,10 +446,14 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
         updates["avatar_url"] = body.avatar_url
     if body.bio is not None:
         updates["bio"] = body.bio
+    for f in ("first_name", "last_name", "phone", "birth_date", "city"):
+        val = getattr(body, f)
+        if val is not None:
+            updates[f] = val.strip()
     if updates:
         await db.users.update_one({"id": user["id"]}, {"$set": updates})
     updated = await db.users.find_one({"id": user["id"]})
-    return {**user_public(updated), "email": updated["email"]}
+    return user_me(updated)
 
 # ============ USERS ============
 @api_router.get("/users/favorites")

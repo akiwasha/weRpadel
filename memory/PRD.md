@@ -69,6 +69,11 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - Endpoint `POST /api/announcements/{id}/rate` body `{ratings:[{user_id,stars}]}` → applique les notes (reliability_sum/count) et marque `rated_by`. Champs serialize : `can_rate`, `has_rated`.
 - UI /matches : modal d'invitation auto-ouvert si note en attente + bouton "Noter la fiabilité des joueurs" par carte ; après validation → "Joueurs notés · merci !".
 
+## Inscription enrichie + confidentialité (Itération 13)
+- À l'inscription on collecte : **prénom, nom, pseudonyme, email, téléphone, date de naissance (JJ/MM/AAAA → stocké YYYY-MM-DD), ville** (+ mot de passe). Tous **requis**.
+- **Seul le `pseudo` est public.** prénom/nom/email/téléphone/date de naissance/ville sont **privés** : renvoyés uniquement dans `/auth/me` (register/login/me via helper `user_me`) et éditables via `PUT /auth/me`. `user_public` (endpoints publics `/users/{id}`, annonces, joueurs) n'expose JAMAIS ces champs. Vérifié : aucune fuite sur `/users/{id}`, register sans ces champs → 422.
+- UI : `sign-up.tsx` (bandeau confidentialité + tag "public" sur pseudo), `profile.tsx` carte "Mes infos (privées)" 🔒, `edit-profile.tsx` section "Coordonnées privées" éditable.
+
 ## Notification "Match complet" (Emergent Push — Itération 11)
 - Emergent managed push (relay SuprSend). Endpoints backend : `POST /api/register-push` + helper `send_push`.
 - Déclenchement : quand le 4e joueur rejoint un match (`/announcements/{id}/join` → 4/4), l'ORGANISATEUR reçoit une push "Match complet ! 🎾" avec `action_url` `/club/{club_id}`. Envoi wrappé try/except (non bloquant).

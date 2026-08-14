@@ -12,13 +12,23 @@ export type User = {
   reliability_count: number;
   verified?: boolean;
   bio: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  birth_date?: string | null;
+  city?: string | null;
+};
+
+export type SignUpInput = {
+  email: string; password: string; pseudo: string;
+  first_name: string; last_name: string; phone: string; birth_date: string; city: string;
 };
 
 type Ctx = {
   user: User | null;
   ready: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, pseudo: string) => Promise<void>;
+  signUp: (payload: SignUpInput) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   updateUser: (u: User) => void;
@@ -58,8 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, pseudo: string) => {
-    const res = await api.register(email, password, pseudo);
+  const signUp = useCallback(async (payload: SignUpInput) => {
+    const res = await api.register(payload);
     await setToken(res.token);
     await setStoredUser(res.user);
     setUser(res.user);

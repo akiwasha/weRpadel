@@ -14,12 +14,33 @@ const AVATARS = [
   "https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?w=300",
 ];
 
+function isoToDisplay(iso?: string | null) {
+  if (!iso) return "";
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+function toIsoDate(input: string): string | null {
+  const m = input.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const day = +dd, month = +mm, year = +yyyy;
+  const d = new Date(year, month - 1, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+  if (year < 1900 || d > new Date()) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function EditProfile() {
   const router = useRouter();
   const { user, updateUser } = useAuth();
   const [pseudo, setPseudo] = useState(user?.pseudo || "");
   const [level, setLevel] = useState(user?.level || "Débutant");
   const [bio, setBio] = useState(user?.bio || "");
+  const [firstName, setFirstName] = useState(user?.first_name || "");
+  const [lastName, setLastName] = useState(user?.last_name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [birth, setBirth] = useState(isoToDisplay(user?.birth_date));
+  const [city, setCity] = useState(user?.city || "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url || null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [pendingUri, setPendingUri] = useState<string | null>(null);
@@ -56,11 +77,22 @@ export default function EditProfile() {
         const res = await api.uploadAvatar(pendingUri);
         finalAvatar = res.avatar_url;
       }
+      let birthIso: string | null = user?.birth_date || null;
+      if (birth.trim()) {
+        const iso = toIsoDate(birth);
+        if (!iso) { setErr("Date de naissance invalide (JJ/MM/AAAA)"); setLoading(false); return; }
+        birthIso = iso;
+      }
       const updated = await api.updateMe({
         pseudo: pseudo.trim(),
         level,
         bio: bio.trim() || null,
         avatar_url: finalAvatar,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        phone: phone.trim(),
+        birth_date: birthIso,
+        city: city.trim(),
       });
       updateUser(updated);
       router.back();
@@ -112,8 +144,38 @@ export default function EditProfile() {
             ))}
           </ScrollView>
 
-          <Text style={styles.label}>Pseudo</Text>
+          <Text style={styles.label}>Pseudo <Text style={styles.publicTag}>public</Text></Text>
           <TextInput testID="edit-pseudo" value={pseudo} onChangeText={setPseudo} style={styles.input} autoCapitalize="none" />
+
+          <View style={styles.privateHead}>
+            <Ionicons name="lock-closed" size={15} color={colors.onSurfaceSecondary} />
+            <Text style={styles.privateHeadText}>Coordonnées privées — visibles uniquement par toi</Text>
+          </View>
+
+          <View style={styles.rowFields}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Prénom</Text>
+              <TextInput testID="edit-firstname" value={firstName} onChangeText={setFirstName} style={styles.input} placeholder="Prénom" placeholderTextColor={colors.onSurfaceTertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Nom</Text>
+              <TextInput testID="edit-lastname" value={lastName} onChangeText={setLastName} style={styles.input} placeholder="Nom" placeholderTextColor={colors.onSurfaceTertiary} />
+            </View>
+          </View>
+
+          <Text style={styles.label}>Téléphone</Text>
+          <TextInput testID="edit-phone" value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" placeholder="06 12 34 56 78" placeholderTextColor={colors.onSurfaceTertiary} />
+
+          <View style={styles.rowFields}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Date de naissance</Text>
+              <TextInput testID="edit-birth" value={birth} onChangeText={setBirth} style={styles.input} keyboardType="numbers-and-punctuation" placeholder="JJ/MM/AAAA" placeholderTextColor={colors.onSurfaceTertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Ville</Text>
+              <TextInput testID="edit-city" value={city} onChangeText={setCity} style={styles.input} placeholder="Ville" placeholderTextColor={colors.onSurfaceTertiary} />
+            </View>
+          </View>
 
           <Text style={styles.label}>Niveau</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
@@ -166,6 +228,13 @@ const styles = StyleSheet.create({
   },
   hint: { fontSize: type.sm, color: colors.onSurfaceTertiary },
   label: { fontSize: type.base, fontWeight: "700", color: colors.onSurface, marginTop: spacing.sm },
+  publicTag: { fontSize: 11, color: colors.brandPrimary, fontWeight: "800" },
+  privateHead: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.lg,
+    paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  privateHeadText: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700", flexShrink: 1 },
+  rowFields: { flexDirection: "row", gap: spacing.md },
   input: {
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.md,
     paddingHorizontal: spacing.lg, paddingVertical: 12, fontSize: type.lg, color: colors.onSurface,

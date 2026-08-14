@@ -24,6 +24,22 @@ function StarRow({ value }: { value: number }) {
   );
 }
 
+function fmtBirth(iso?: string | null) {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
+}
+
+function InfoLine({ icon, label, value }: { icon: any; label: string; value: string | null }) {
+  return (
+    <View style={styles.infoLine}>
+      <Ionicons name={icon} size={16} color={colors.onSurfaceTertiary} />
+      <Text style={styles.infoLineLabel}>{label}</Text>
+      <Text style={styles.infoLineValue} numberOfLines={1}>{value || "Non renseigné"}</Text>
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { isSubscribed } = useSubscription();
@@ -119,6 +135,19 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
+        <View style={styles.card}>
+          <View style={styles.privateHeadRow}>
+            <Ionicons name="lock-closed" size={14} color={colors.onSurfaceSecondary} />
+            <Text style={styles.cardLabel}>Mes infos (privées)</Text>
+          </View>
+          <Text style={styles.privateNote}>Visibles uniquement par toi. Les autres joueurs ne voient que ton pseudo.</Text>
+          <InfoLine icon="person-outline" label="Nom" value={[user.first_name, user.last_name].filter(Boolean).join(" ") || null} />
+          <InfoLine icon="mail-outline" label="Email" value={user.email} />
+          <InfoLine icon="call-outline" label="Téléphone" value={user.phone || null} />
+          <InfoLine icon="calendar-outline" label="Naissance" value={fmtBirth(user.birth_date)} />
+          <InfoLine icon="location-outline" label="Ville" value={user.city || null} />
+        </View>
+
         <Pressable
           testID="signout-btn"
           onPress={async () => { await signOut(); router.replace("/(auth)/sign-in"); }}
@@ -177,6 +206,14 @@ const styles = StyleSheet.create({
   reliabilityValue: { fontSize: type.xl, fontWeight: "800", color: colors.onSurface },
   cardHint: { fontSize: type.sm, color: colors.onSurfaceTertiary },
   bioText: { fontSize: type.base, color: colors.onSurface, lineHeight: 22 },
+  privateHeadRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  privateNote: { fontSize: type.sm, color: colors.onSurfaceTertiary, marginBottom: spacing.xs },
+  infoLine: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.divider,
+  },
+  infoLineLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700", width: 90 },
+  infoLineValue: { flex: 1, fontSize: type.base, color: colors.onSurface, fontWeight: "600", textAlign: "right" },
   signOut: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
     paddingVertical: 14, borderRadius: radius.pill,
