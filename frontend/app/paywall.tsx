@@ -70,7 +70,7 @@ export default function Paywall() {
           <View style={styles.crown}>
             <Ionicons name="star" size={40} color={colors.brandPrimary} />
           </View>
-          <Text style={styles.heroTitle}>PadelConnect Premium</Text>
+          <Text style={styles.heroTitle}>weRpadel Premium</Text>
           <Text style={styles.heroSub}>Débloque toute la mise en relation entre joueurs</Text>
         </LinearGradient>
 
@@ -141,7 +141,7 @@ export default function Paywall() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Confirmer l’abonnement</Text>
             <Text style={styles.modalBody}>
-              Tu vas t’abonner à PadelConnect Premium pour {price} par an.
+              Tu vas t’abonner à weRpadel Premium pour {price} par an.
             </Text>
             <View style={styles.modalActions}>
               <Pressable testID="paywall-confirm-cancel" onPress={() => setConfirmOpen(false)} style={[styles.modalBtn, styles.modalCancel]}>

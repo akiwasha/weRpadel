@@ -51,7 +51,7 @@ export default function ManageSubscription() {
         <View style={[styles.statusCard, isSubscribed ? styles.active : styles.inactive]}>
           <Ionicons name={isSubscribed ? "star" : "star-outline"} size={28} color={colors.onBrandPrimary} />
           <Text style={styles.statusTitle}>{isSubscribed ? "Premium actif" : "Aucun abonnement actif"}</Text>
-          <Text style={styles.statusSub}>PadelConnect Premium · 9,90 €/an</Text>
+          <Text style={styles.statusSub}>weRpadel Premium · 9,90 €/an</Text>
         </View>
 
         {isSubscribed ? (

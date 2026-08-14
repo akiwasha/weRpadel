@@ -35,7 +35,7 @@ export default function SignIn() {
             <View style={styles.logoCircle}>
               <Ionicons name="tennisball" size={44} color={colors.onBrandPrimary} />
             </View>
-            <Text style={styles.title}>PadelConnect</Text>
+            <Text style={styles.title}>weRpadel</Text>
             <Text style={styles.subtitle}>Trouve tes partenaires de padel</Text>
           </View>
 
