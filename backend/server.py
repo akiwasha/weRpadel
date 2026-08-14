@@ -123,6 +123,7 @@ class ClubCreate(BaseModel):
 class AnnouncementCreate(BaseModel):
     content: str = Field(min_length=1, max_length=500)
     availability: Optional[str] = None
+    party_size: int = Field(default=1, ge=1, le=4)  # joueurs déjà réunis (organisateur inclus)
 
 class AnnouncementOut(BaseModel):
     id: str
@@ -132,6 +133,8 @@ class AnnouncementOut(BaseModel):
     availability: Optional[str] = None
     created_at: str
     players: List[UserPublic] = []
+    offline_count: int = 0
+    total_players: int = 1
     max_players: int = 4
     slots_left: int = 3
     is_full: bool = False
@@ -353,12 +356,13 @@ MAX_PLAYERS = 4
 async def serialize_announcement(a: dict, current_user_id: str) -> dict:
     author = await db.users.find_one({"id": a["author_id"]})
     player_ids = a.get("players") or [a["author_id"]]
+    offline_count = a.get("offline_count", 0)
     players = []
     for pid in player_ids:
         pu = await db.users.find_one({"id": pid})
         if pu:
             players.append(user_public(pu))
-    count = len(players)
+    total = len(players) + offline_count
     return {
         "id": a["id"],
         "club_id": a["club_id"],
@@ -367,9 +371,11 @@ async def serialize_announcement(a: dict, current_user_id: str) -> dict:
         "availability": a.get("availability"),
         "created_at": a["created_at"],
         "players": players,
+        "offline_count": offline_count,
+        "total_players": total,
         "max_players": MAX_PLAYERS,
-        "slots_left": max(0, MAX_PLAYERS - count),
-        "is_full": count >= MAX_PLAYERS,
+        "slots_left": max(0, MAX_PLAYERS - total),
+        "is_full": total >= MAX_PLAYERS,
         "is_member": current_user_id in player_ids,
         "is_author": current_user_id == a["author_id"],
     }
@@ -400,6 +406,7 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "content": body.content,
         "availability": body.availability,
         "players": [user["id"]],
+        "offline_count": max(0, body.party_size - 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(ann)
@@ -411,9 +418,10 @@ async def join_announcement(ann_id: str, user=Depends(current_user)):
     if not ann:
         raise HTTPException(404, "Annonce introuvable")
     players = ann.get("players") or [ann["author_id"]]
+    offline_count = ann.get("offline_count", 0)
     if user["id"] in players:
         return await serialize_announcement(ann, user["id"])
-    if len(players) >= MAX_PLAYERS:
+    if len(players) + offline_count >= MAX_PLAYERS:
         raise HTTPException(409, "Match complet (4 joueurs)")
     players.append(user["id"])
     await db.announcements.update_one({"id": ann_id}, {"$set": {"players": players}})

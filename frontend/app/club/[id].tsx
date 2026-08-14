@@ -21,6 +21,8 @@ type Announcement = {
   created_at: string;
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
   players: Player[];
+  offline_count: number;
+  total_players: number;
   max_players: number;
   slots_left: number;
   is_full: boolean;
@@ -40,6 +42,7 @@ export default function ClubDetail() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [text, setText] = useState("");
   const [availability, setAvailability] = useState("");
+  const [partySize, setPartySize] = useState(1);
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
@@ -61,10 +64,11 @@ export default function ClubDetail() {
     if (!text.trim() || !id) return;
     setPosting(true);
     try {
-      const a = await api.postAnnouncement(id, text.trim(), availability.trim() || undefined);
+      const a = await api.postAnnouncement(id, text.trim(), availability.trim() || undefined, partySize);
       setItems([a, ...items]);
       setText("");
       setAvailability("");
+      setPartySize(1);
     } catch (e: any) { console.log(e); }
     finally { setPosting(false); }
   };
@@ -238,8 +242,13 @@ export default function ClubDetail() {
                           )}
                         </View>
                       ))}
+                      {Array.from({ length: item.offline_count }).map((_, i) => (
+                        <View key={`offline-${i}`} style={[styles.playerAvatar, styles.offlineSlot, { marginLeft: -10 }]}>
+                          <Ionicons name="person" size={15} color={colors.onBrandSecondary} />
+                        </View>
+                      ))}
                       {Array.from({ length: item.slots_left }).map((_, i) => (
-                        <View key={`empty-${i}`} style={[styles.playerAvatar, styles.emptySlot, (item.players.length > 0 || i > 0) && { marginLeft: -10 }]}>
+                        <View key={`empty-${i}`} style={[styles.playerAvatar, styles.emptySlot, { marginLeft: -10 }]}>
                           <Ionicons name="add" size={16} color={colors.onSurfaceTertiary} />
                         </View>
                       ))}
@@ -252,7 +261,7 @@ export default function ClubDetail() {
                       </View>
                     ) : (
                       <Text style={styles.slotsText}>
-                        {item.players.length}/4 · {item.slots_left} place{item.slots_left > 1 ? "s" : ""}
+                        {item.total_players}/4 · {item.slots_left} place{item.slots_left > 1 ? "s" : ""}
                       </Text>
                     )}
                   </View>
@@ -313,6 +322,19 @@ export default function ClubDetail() {
           <View style={styles.composer}>
             {isSubscribed ? (
               <>
+                <View style={styles.partyRow}>
+                  <Text style={styles.partyLabel}>Déjà réunis :</Text>
+                  {[1, 2, 3].map((n) => (
+                    <Pressable
+                      key={n}
+                      testID={`party-size-${n}`}
+                      onPress={() => setPartySize(n)}
+                      style={[styles.partyChip, partySize === n && styles.partyChipActive]}
+                    >
+                      <Text style={[styles.partyChipText, partySize === n && styles.partyChipTextActive]}>{n}/4</Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput
                   testID="ann-availability-input"
                   value={availability}
@@ -414,6 +436,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center",
     borderStyle: "dashed", borderColor: colors.borderStrong,
   },
+  offlineSlot: { backgroundColor: colors.brandSecondary, alignItems: "center", justifyContent: "center" },
+  partyRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  partyLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700" },
+  partyChip: {
+    height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: colors.border,
+  },
+  partyChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  partyChipText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.sm },
+  partyChipTextActive: { color: colors.onBrandPrimary },
   confirmedBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,

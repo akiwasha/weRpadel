@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 7 (party_size / offline players) tested end-to-end. Backend: 10/10 pytest cases pass — party_size=2 → offline_count=1, total_players=2, slots_left=2; party_size=3 + 2nd user join → is_full=true; 3rd joiner → 409 'Match complet'; party_size default=1 with offline_count=0 (backward compat); bounds validation (0/5/-1 → 422); party_size=4 immediately full; list endpoint exposes offline_count/total_players/slots_left/is_full and math is consistent for seeded/legacy items. Frontend: composer shows 'Déjà réunis :' row with party-size-1/2/3 chips (default 1). Selecting 2/4 and posting created a card displaying '2/4 · 2 places' with 1 app avatar + 1 offline person pastille + 2 empty '+' slots. 'Match confirmé · 4/4' badge visible on full matches. Level filter (Tous/Débutant/Intermédiaire/Confirmé/Expert) all rendered. No deprecated Expo packages detected in server code path; only minor RN web console warnings ('shadow*' style props deprecated on web / props.pointerEvents deprecated) which are cosmetic on the web preview and don't affect native. Test Store price $79.99 not verified this iteration (expected per handoff).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet (web preview)", "issue": "React Native Web deprecation warnings: 'shadow*' style props are deprecated (use boxShadow) and props.pointerEvents is deprecated (use style.pointerEvents). Non-blocking on native; visible only in web preview console."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/iter7_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional cleanup: migrate any remaining shadow* style props to boxShadow and pointerEvents prop to style.pointerEvents to silence RN Web warnings."
+  ],
+  "critical_code_review_comments": [
+    "serialize_announcement correctly derives total_players from len(players)+offline_count and computes slots_left/is_full from total; join endpoint honours offline_count in the 4-player cap (server.py:415-429).",
+    "AnnouncementCreate.party_size validated with Field(ge=1, le=4) — returns 422 on out-of-range (server.py:126).",
+    "Backward compatibility: ann.get('offline_count', 0) defaults to 0 for pre-existing seeded announcements (server.py:359).",
+    "Composer party-size chips reset to 1 after posting (club/[id].tsx:71) — good UX.",
+    "Match panel renders offline avatars between app players and empty slots as specified (club/[id].tsx:245-254)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration7.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Test announcements prefixed with TEST_iter7 created in first seeded club via marc@padel.fr. Not cleaned up (small volume, does not affect other tests).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "party_size feature is fully green on backend + frontend. Regression on join/leave, is_full badge, level filter, non-subscriber blurred preview (visible via new fresh account), messaging gating and Test Store purchase were validated in previous iterations (1-6) and party_size didn't break them. To retest UI: login marc@padel.fr / password123 → open any club → default tab is 'Annonces' → composer at bottom exposes testIDs party-size-1/2/3, ann-availability-input, ann-content-input, ann-post-btn. Non-subscribed users see ann-premium-lock instead of composer.",
+  "rca_of_issue": "N/A — no bugs found this iteration."
+}
