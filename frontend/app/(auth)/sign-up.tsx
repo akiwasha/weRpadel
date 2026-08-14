@@ -70,7 +70,7 @@ export default function SignUp() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Image source={require("../../assets/images/logo.png")} style={styles.logo} contentFit="contain" />
+            <Image source={require("../../assets/images/logo-mark.png")} style={styles.logo} contentFit="contain" />
             <Text style={styles.title}>Créer un compte</Text>
             <Text style={styles.subtitle}>Rejoins la communauté padel</Text>
           </View>
@@ -204,7 +204,7 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.surface },
+  safe: { flex: 1, backgroundColor: "#FFF7D6" },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   header: { alignItems: "center", marginBottom: spacing.lg },
   logo: { width: 80, height: 80, borderRadius: 20 },

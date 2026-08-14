@@ -32,8 +32,8 @@ export default function SignIn() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <Image source={require("../../assets/images/logo.png")} style={styles.logo} contentFit="contain" />
-            <Text style={styles.title}>weRpadel</Text>
+            <Image source={require("../../assets/images/logo-mark.png")} style={styles.logo} contentFit="contain" />
+            <Text style={styles.title}>we<Text style={styles.titleAccent}>R</Text>padel</Text>
             <Text style={styles.subtitle}>Trouve tes partenaires de padel</Text>
           </View>
 
@@ -84,11 +84,12 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.surface },
+  safe: { flex: 1, backgroundColor: "#FFF7D6" },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   logoWrap: { alignItems: "center", marginBottom: spacing.xxxl },
   logo: { width: 96, height: 96, borderRadius: 22 },
-  title: { fontSize: 32, fontWeight: "800", color: colors.onSurface, marginTop: spacing.lg },
+  title: { fontSize: 32, fontWeight: "800", color: colors.onSurface, marginTop: spacing.lg, letterSpacing: 0.5 },
+  titleAccent: { color: colors.brandPrimary, fontWeight: "900" },
   subtitle: { fontSize: type.lg, color: colors.onSurfaceSecondary, marginTop: spacing.xs },
   form: { gap: spacing.md },
   label: { fontSize: type.base, fontWeight: "700", color: colors.onSurface, marginTop: spacing.sm },
