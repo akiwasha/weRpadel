@@ -23,7 +23,6 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.padelplay.y9om9x",
-      "googleServicesFile": "./google-services.json",
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": {
@@ -46,12 +45,6 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "color": "#FF6B15"
         }
       ]
     ],
