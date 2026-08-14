@@ -455,6 +455,27 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
     updated = await db.users.find_one({"id": user["id"]})
     return user_me(updated)
 
+@api_router.delete("/auth/me")
+async def delete_me(user=Depends(current_user)):
+    uid = user["id"]
+    # Reverse the reliability this user gave to others, then drop their ratings
+    async for r in db.ratings.find({"from_user": uid}):
+        await db.users.update_one(
+            {"id": r["to_user"]},
+            {"$inc": {"reliability_sum": -r.get("stars", 0), "reliability_count": -1}},
+        )
+    await db.ratings.delete_many({"$or": [{"from_user": uid}, {"to_user": uid}]})
+    # Delete their conversations/messages
+    await db.messages.delete_many({"$or": [{"from_user_id": uid}, {"to_user_id": uid}]})
+    # Delete matches they created, and remove them from any other match
+    await db.announcements.delete_many({"author_id": uid})
+    await db.announcements.update_many({}, {"$pull": {"players": uid, "muted_by": uid, "rated_by": uid}})
+    # Remove them from other users' favorites
+    await db.users.update_many({"favorites": uid}, {"$pull": {"favorites": uid}})
+    # Finally, delete the account
+    await db.users.delete_one({"id": uid})
+    return {"status": "deleted"}
+
 # ============ USERS ============
 @api_router.get("/users/favorites")
 async def list_favorites(user=Depends(current_user)):

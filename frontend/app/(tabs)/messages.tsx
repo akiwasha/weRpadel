@@ -113,10 +113,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
     paddingVertical: spacing.md, paddingHorizontal: spacing.md,
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
+    backgroundColor: colors.infoMuted, borderRadius: radius.lg,
     minHeight: 72,
   },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surfaceTertiary },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface },
   avatarFallback: { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandSecondary },
   avatarLetter: { fontSize: 22, fontWeight: "800", color: colors.brandPrimary },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

@@ -69,6 +69,11 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - Endpoint `POST /api/announcements/{id}/rate` body `{ratings:[{user_id,stars}]}` → applique les notes (reliability_sum/count) et marque `rated_by`. Champs serialize : `can_rate`, `has_rated`.
 - UI /matches : modal d'invitation auto-ouvert si note en attente + bouton "Noter la fiabilité des joueurs" par carte ; après validation → "Joueurs notés · merci !".
 
+## Suppression de compte + touches bleu pastel (Itération 14)
+- **Suppression de compte** : bouton "Supprimer mon compte" dans le Profil (double confirmation `Alert`). Endpoint `DELETE /api/auth/me` (authentifié) qui cascade : supprime le user, ses matchs créés, le retire des autres matchs (players/muted_by/rated_by), supprime ses notes (et rééquilibre la fiabilité des joueurs qu'il avait notés), ses messages, et le retire des favoris des autres. Vérifié en curl : 200 puis 401 sur /auth/me + login ; toutes les collections nettoyées.
+- **Touches bleu pastel** : tokens thème `info`/`infoMuted (#DCE9FF)`/`onInfoMuted`. Barre de recherche des Clubs et fond des conversations Messages en bleu pastel pour une identité orange+bleu cohérente.
+- (Le filtre par ville a été écarté : la proximité est déjà couverte par la carte géolocalisée.)
+
 ## Inscription enrichie + confidentialité (Itération 13)
 - À l'inscription on collecte : **prénom, nom, pseudonyme, email, téléphone, date de naissance (JJ/MM/AAAA → stocké YYYY-MM-DD), ville** (+ mot de passe). Tous **requis**.
 - **Seul le `pseudo` est public.** prénom/nom/email/téléphone/date de naissance/ville sont **privés** : renvoyés uniquement dans `/auth/me` (register/login/me via helper `user_me`) et éditables via `PUT /auth/me`. `user_public` (endpoints publics `/users/{id}`, annonces, joueurs) n'expose JAMAIS ces champs. Vérifié : aucune fuite sur `/users/{id}`, register sans ces champs → 422.

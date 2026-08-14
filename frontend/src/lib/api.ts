@@ -38,6 +38,7 @@ export const api = {
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
   me: () => request("/auth/me"),
   updateMe: (body: any) => request("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
+  deleteAccount: () => request("/auth/me", { method: "DELETE" }),
   getUser: (id: string) => request(`/users/${id}`),
   rateUser: (id: string, stars: number) => request(`/users/${id}/rate`, { method: "POST", body: JSON.stringify({ stars }) }),
   toggleFavorite: (id: string) => request(`/users/${id}/favorite`, { method: "POST" }),

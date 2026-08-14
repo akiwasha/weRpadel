@@ -1,11 +1,11 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { fullUrl } from "@/src/lib/api";
+import { fullUrl, api } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedPill } from "@/src/components/VerifiedBadge";
 
@@ -44,6 +44,40 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Supprimer mon compte",
+      "Cette action est définitive. Ton profil, tes matchs, tes messages et tes notes seront supprimés. Continuer ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "Confirmer la suppression",
+              "Es-tu vraiment sûr(e) ? Impossible d'annuler.",
+              [
+                { text: "Annuler", style: "cancel" },
+                {
+                  text: "Oui, supprimer",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await api.deleteAccount();
+                    } catch (e) { console.log(e); }
+                    await signOut();
+                    router.replace("/(auth)/sign-in");
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
 
   if (!user) return null;
 
@@ -156,6 +190,11 @@ export default function ProfileScreen() {
           <Ionicons name="log-out-outline" size={20} color={colors.error} />
           <Text style={styles.signOutText}>Se déconnecter</Text>
         </Pressable>
+
+        <Pressable testID="delete-account-btn" onPress={confirmDelete} style={styles.deleteAccount}>
+          <Ionicons name="trash-outline" size={18} color={colors.error} />
+          <Text style={styles.deleteAccountText}>Supprimer mon compte</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -221,4 +260,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   signOutText: { color: colors.error, fontWeight: "800", fontSize: type.lg },
+  deleteAccount: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, marginTop: spacing.xs,
+  },
+  deleteAccountText: { color: colors.error, fontWeight: "700", fontSize: type.base, textDecorationLine: "underline" },
 });

@@ -100,7 +100,7 @@ export default function ClubsScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.onSurfaceTertiary} />
+        <Ionicons name="search" size={18} color={colors.info} />
         <TextInput
           testID="clubs-search-input"
           value={search}
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     marginHorizontal: spacing.lg, marginBottom: spacing.md,
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
+    backgroundColor: colors.infoMuted, borderRadius: radius.pill,
     paddingHorizontal: spacing.lg, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: type.base, color: colors.onSurface, paddingVertical: 4 },
