@@ -10,6 +10,7 @@ export type User = {
   level: string;
   reliability_avg: number;
   reliability_count: number;
+  verified?: boolean;
   bio: string | null;
 };
 

@@ -1,8 +1,29 @@
-import { Tabs } from "expo-router";
+import { useEffect, useState, useCallback } from "react";
+import { Tabs, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { AppState } from "react-native";
 import { colors } from "@/src/lib/theme";
+import { api } from "@/src/lib/api";
 
 export default function TabsLayout() {
+  const [unread, setUnread] = useState(0);
+  const pathname = usePathname();
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await api.unreadCount();
+      setUnread(r.count || 0);
+    } catch {}
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh, pathname]);
+
+  useEffect(() => {
+    const t = setInterval(refresh, 8000);
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") refresh(); });
+    return () => { clearInterval(t); sub.remove(); };
+  }, [refresh]);
+
   return (
     <Tabs
       screenOptions={{
@@ -32,6 +53,8 @@ export default function TabsLayout() {
         name="messages"
         options={{
           title: "Messages",
+          tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.brandPrimary, color: colors.onBrandPrimary, fontSize: 11, fontWeight: "800" },
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={24} color={color} />
           ),

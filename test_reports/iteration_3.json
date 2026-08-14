@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 3 backend+frontend testing PASSED. Backend: 15/15 new tests pass in /app/backend/tests/test_iteration3.py (also all 16 iter1 regression tests pass — 31/31 combined). New feature validation: (1) GET /api/messages/unread_count returns {count:N} auth-required, increments to base+1 after Julie->Marc DM, drops to 0 after Marc opens the conversation, and is correctly routed BEFORE /api/messages/{other_id} (verified response shape is dict{count} not conversation list). (2) 'verified' field present in /api/auth/me, /api/users/{id}, announcement author blocks, and conversations.other_user. Kevin (avg 4.8, count 5) => verified=true. Marc (avg 4.4, count 5) => verified=false. Rating threshold correctly flips verified=true when a fresh test user reaches avg>=4.5 & count>=5 (5 raters × 5★). (3) latitude/longitude non-null on all 12 seeded clubs in both list and detail endpoints; Padel Horizon Paris ≈ (48.8566, 2.3522). Regression: 6 demo users login OK, /api/clubs has 12+ clubs with announcements_count badges (>=3 with anns), POST/GET /api/messages OK. Frontend (mobile viewport 390×844, web preview): login marc@padel.fr OK. Clubs tab shows the Liste/Carte toggle (testIDs view-list-btn / view-map-btn); Carte mode on web renders the fallback banner 'La carte interactive s'affiche sur l'app mobile (Expo Go)' + 16 map-list-<id> items (16 = 12 approved + Marc's leftover TEST_ pending clubs, expected per iter2 bug-fix). Messages tab tabBarBadge = '1' appears within 10s of an unread DM (auto-refresh interval works); opening the conversation clears it. VerifiedPill ('Joueur vérifié') displays on Kevin's profile screen; VerifiedTick displays on the conversation row of JulieSmash and inline in club announcement authors. No red screen, no runtime errors. Only pre-existing deprecation warnings ('shadow*' style props, props.pointerEvents) surface in console — carried over from iter1, non-blocking.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet shadow*", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' (still present since iter1). Reference: /app/frontend/app/(tabs)/index.tsx:219 (toggleActive uses shadowColor/shadowOpacity/shadowRadius) and card style at :233"},
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Likely in react-native-safe-area-context or expo-router chrome; not app code. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "(low priority) Replace shadow* style props with boxShadow on web-facing components (index.tsx toggle & card) to silence the deprecation warning. Native builds still need shadow* / elevation, so use Platform.select or migrate to a shared style helper.",
+    "(optional) Consider filtering out TEST_ pending clubs from Marc's account in the seed/dev DB so the Carte fallback shows exactly 12 items during demos. Not a functional bug."
+  ],
+  "critical_code_review_comments": [
+    "user_public() at server.py:188 correctly computes verified = avg>=4.5 AND count>=5 and is used by every endpoint that returns UserPublic (auth/me, get_user, rate_user response, announcement author enrichment, conversation.other_user). No leakage.",
+    "Route order at server.py:427/432 is correct: /messages/unread_count is declared BEFORE /messages/{other_id}, so FastAPI matches the static path first. Verified at runtime — returned shape is {count:int}.",
+    "Startup migration at server.py:519-522 backfills latitude/longitude on any pre-existing clubs without coords using name→(lat,lng) map. Non-destructive, idempotent.",
+    "TabsLayout unread polling: 8s interval + AppState 'active' + pathname change trigger. Reasonable for MVP; consider adding onFocus of Messages screen for a snappier UX.",
+    "ClubsMap.web.tsx fallback list uses testID=map-list-<id> exposed and works well; no crashes on web."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (15/15 iter3 + 16/16 iter1 regression = 31/31)", "frontend": "100% on the 3 targeted flows (Liste/Carte toggle, Messages tab badge, VerifiedPill on Kevin)" },
+  "seed_data_creation": "During tests: 1 fresh TEST_target_<hex>@padel.fr user (rated 5× to reach verified=true) — will remain in DB. Several TEST_iter3_/TEST_badge_ping_/TEST_reg_ DM rows added between Marc↔Julie. No new clubs. Prior iter2 TEST_ pending clubs still visible only to Marc (expected).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 3 new features validated end-to-end. Backend regression suite is /app/backend/tests/test_iteration3.py + /app/backend/tests/test_padelconnect.py — pytest.ini already correctly points at backend. Note: /app/backend/tests/test_iteration2.py uses os.environ[...] hard read of EXPO_PUBLIC_BACKEND_URL which is not present in the container env (frontend/.env only), so it errors on collection when running the full suite — either export the var before pytest or refactor it to read from frontend/.env. Not a code bug in the app itself. Frontend web fallback for the map is expected — real interactive map only in Expo Go/native.",
+  "rca_of_issue": "N/A — all features working. Only known noise is the 'shadow*' deprecation warning tracked since iter1 and a minor pointerEvents warning from an upstream lib."
+}

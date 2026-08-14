@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { VerifiedPill } from "@/src/components/VerifiedBadge";
 
 export default function PlayerProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -65,6 +66,7 @@ export default function PlayerProfile() {
             </View>
           )}
           <Text style={styles.pseudo}>{player.pseudo}</Text>
+          {player.verified && <VerifiedPill />}
           <View style={styles.levelPill}>
             <Ionicons name="trophy" size={14} color={colors.onBrandSecondary} />
             <Text style={styles.levelText}>{player.level}</Text>

@@ -7,7 +7,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
+import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { VerifiedTick } from "@/src/components/VerifiedBadge";
 
 type Announcement = {
   id: string;
@@ -15,13 +17,14 @@ type Announcement = {
   content: string;
   availability: string | null;
   created_at: string;
-  author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number };
+  author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
 };
 
 export default function ClubDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { isSubscribed } = useSubscription();
   const [club, setClub] = useState<any>(null);
   const [tab, setTab] = useState<"info" | "chat">("chat");
   const [items, setItems] = useState<Announcement[]>([]);
@@ -153,7 +156,10 @@ export default function ClubDetail() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.annName}>{item.author.pseudo}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Text style={styles.annName}>{item.author.pseudo}</Text>
+                      {item.author.verified && <VerifiedTick size={14} />}
+                    </View>
                     <Text style={styles.annMeta}>{item.author.level} · ⭐ {item.author.reliability_avg.toFixed(1)}</Text>
                   </View>
                   {!isMine(item.author.id) && (
@@ -178,33 +184,42 @@ export default function ClubDetail() {
           />
 
           <View style={styles.composer}>
-            <TextInput
-              testID="ann-availability-input"
-              value={availability}
-              onChangeText={setAvailability}
-              placeholder="Disponibilités (ex: Sam 14h)"
-              placeholderTextColor={colors.onSurfaceTertiary}
-              style={styles.availInput}
-            />
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <TextInput
-                testID="ann-content-input"
-                value={text}
-                onChangeText={setText}
-                placeholder="Je cherche un partenaire..."
-                placeholderTextColor={colors.onSurfaceTertiary}
-                style={styles.contentInput}
-                multiline
-              />
-              <Pressable
-                testID="ann-post-btn"
-                onPress={post}
-                disabled={posting || !text.trim()}
-                style={[styles.sendBtn, (!text.trim() || posting) && { opacity: 0.5 }]}
-              >
-                {posting ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
+            {isSubscribed ? (
+              <>
+                <TextInput
+                  testID="ann-availability-input"
+                  value={availability}
+                  onChangeText={setAvailability}
+                  placeholder="Disponibilités (ex: Sam 14h)"
+                  placeholderTextColor={colors.onSurfaceTertiary}
+                  style={styles.availInput}
+                />
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <TextInput
+                    testID="ann-content-input"
+                    value={text}
+                    onChangeText={setText}
+                    placeholder="Je cherche un partenaire..."
+                    placeholderTextColor={colors.onSurfaceTertiary}
+                    style={styles.contentInput}
+                    multiline
+                  />
+                  <Pressable
+                    testID="ann-post-btn"
+                    onPress={post}
+                    disabled={posting || !text.trim()}
+                    style={[styles.sendBtn, (!text.trim() || posting) && { opacity: 0.5 }]}
+                  >
+                    {posting ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Pressable testID="ann-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
+                <Ionicons name="lock-closed" size={18} color={colors.onBrandPrimary} />
+                <Text style={styles.lockText}>Passe Premium pour poster une annonce</Text>
               </Pressable>
-            </View>
+            )}
           </View>
         </KeyboardAvoidingView>
       )}
@@ -272,4 +287,9 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: radius.pill,
     backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
   },
+  lockComposer: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
+  },
+  lockText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
 });

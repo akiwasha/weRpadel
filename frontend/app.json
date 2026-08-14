@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.padelplay.y9om9x"
+      "bundleIdentifier": "com.emergent.padelplay.y9om9x",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Voir les clubs de padel proches de vous"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +21,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.padelplay.y9om9x"
+      "package": "com.emergent.padelplay.y9om9x",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": {
       "bundler": "metro",
@@ -27,6 +31,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Voir les clubs de padel proches de vous"
+        }
+      ],
       [
         "expo-splash-screen",
         {

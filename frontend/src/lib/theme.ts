@@ -15,6 +15,7 @@ export const colors = {
   brandTertiary: "#FFF5F0",
   onBrandTertiary: "#E24F04",
   success: "#22C55E",
+  onSuccess: "#FFFFFF",
   warning: "#F59E0B",
   error: "#EF4444",
   border: "#E9EBEF",

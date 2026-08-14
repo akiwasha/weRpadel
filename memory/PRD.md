@@ -35,3 +35,20 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 ## Business enhancement idea (future)
 - Système de "matchs organisés" avec réservation de créneau et validation par les 4 joueurs.
 - Freemium : profils premium avec badges vérifiés + statistiques détaillées.
+
+## Monétisation — Abonnement Premium (implémenté 2026-08-14)
+- **RevenueCat** (Emergent-managed) — entitlement `pro`, offering `default`, package `$rc_annual`.
+- **Prix : 9,90 €/an**, auto-renouvelable, **sans essai gratuit**.
+- **Modèle freemium** :
+  - GRATUIT : inscription, parcourir les clubs (liste + carte), voir annonces & profils, notation.
+  - PREMIUM requis : envoyer des messages privés (chat) + poster des annonces de club.
+- Paywall : `/app/frontend/app/paywall.tsx`. Hook : `src/lib/revenuecat.tsx` (`useSubscription`).
+- Gating : composers verrouillés dans `chat/[id].tsx` et `club/[id].tsx` → redirigent vers `/paywall`.
+- Identity : `Purchases.logIn(user.id)` dans `_layout.tsx` sur chaque auth.
+- ⚠️ Paiement réel uniquement sur build iOS/Android déployé. En preview/Expo Go : RevenueCat Test Store (prix affiché $79.99 = artefact du test store).
+- Détails/IDs : voir `/app/memory/revenuecat.md`.
+
+## Autres features livrées (2026-08-14)
+- Badge "Joueur vérifié" (fiabilité ≥ 4,5 sur ≥ 5 avis) affiché partout.
+- Pastille de messages non lus sur l'onglet Messages.
+- Carte géolocalisée des clubs (react-native-maps + expo-location) avec toggle Liste/Carte.

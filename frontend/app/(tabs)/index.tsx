@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import ClubsMap from "@/src/components/ClubsMap";
 
 type Club = {
   id: string;
@@ -14,6 +15,8 @@ type Club = {
   city: string;
   region: string;
   image_url: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   announcements_count: number;
 };
 
@@ -25,6 +28,7 @@ export default function ClubsScreen() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const load = useCallback(async () => {
     try {
@@ -107,6 +111,33 @@ export default function ClubsScreen() {
         />
       </View>
 
+      <View style={styles.viewToggle}>
+        <Pressable
+          testID="view-list-btn"
+          onPress={() => setViewMode("list")}
+          style={[styles.toggleBtn, viewMode === "list" && styles.toggleActive]}
+        >
+          <Ionicons name="list" size={18} color={viewMode === "list" ? colors.onSurface : colors.onSurfaceSecondary} />
+          <Text style={[styles.toggleText, viewMode === "list" && styles.toggleTextActive]}>Liste</Text>
+        </Pressable>
+        <Pressable
+          testID="view-map-btn"
+          onPress={() => setViewMode("map")}
+          style={[styles.toggleBtn, viewMode === "map" && styles.toggleActive]}
+        >
+          <Ionicons name="map" size={18} color={viewMode === "map" ? colors.onSurface : colors.onSurfaceSecondary} />
+          <Text style={[styles.toggleText, viewMode === "map" && styles.toggleTextActive]}>Carte</Text>
+        </Pressable>
+      </View>
+
+      {viewMode === "map" ? (
+        loading ? (
+          <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
+        ) : (
+          <ClubsMap clubs={clubs} onSelect={(id) => router.push(`/club/${id}`)} />
+        )
+      ) : (
+      <>
       <View style={styles.chipsWrap}>
         <ScrollView
           horizontal
@@ -152,6 +183,8 @@ export default function ClubsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.brandPrimary} />}
         />
       )}
+      </>
+      )}
     </SafeAreaView>
   );
 }
@@ -175,6 +208,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: type.base, color: colors.onSurface, paddingVertical: 4 },
+  viewToggle: {
+    flexDirection: "row", marginHorizontal: spacing.lg, marginBottom: spacing.md,
+    padding: 4, backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
+  },
+  toggleBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: radius.pill,
+  },
+  toggleActive: { backgroundColor: colors.surface, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  toggleText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.base },
+  toggleTextActive: { color: colors.onSurface },
   chipsWrap: { height: 56, justifyContent: "center", marginBottom: spacing.sm },
   chip: {
     flexShrink: 0, height: 36,

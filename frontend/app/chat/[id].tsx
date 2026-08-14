@@ -6,7 +6,9 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
+import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { VerifiedTick } from "@/src/components/VerifiedBadge";
 
 type Msg = { id: string; from_user_id: string; to_user_id: string; content: string; created_at: string };
 
@@ -14,6 +16,7 @@ export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { isSubscribed } = useSubscription();
   const [other, setOther] = useState<any>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
@@ -77,7 +80,10 @@ export default function Chat() {
             </View>
           )}
           <View>
-            <Text style={styles.headName}>{other.pseudo}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={styles.headName}>{other.pseudo}</Text>
+              {other.verified && <VerifiedTick size={14} />}
+            </View>
             <Text style={styles.headSub}>{other.level} · ⭐ {other.reliability_avg.toFixed(1)}</Text>
           </View>
         </Pressable>
@@ -111,25 +117,32 @@ export default function Chat() {
           }}
         />
 
-        <View style={styles.composer}>
-          <TextInput
-            testID="chat-input"
-            value={text}
-            onChangeText={setText}
-            placeholder="Écris un message..."
-            placeholderTextColor={colors.onSurfaceTertiary}
-            style={styles.input}
-            multiline
-          />
-          <Pressable
-            testID="chat-send-btn"
-            onPress={send}
-            disabled={sending || !text.trim()}
-            style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.5 }]}
-          >
-            {sending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
+        {isSubscribed ? (
+          <View style={styles.composer}>
+            <TextInput
+              testID="chat-input"
+              value={text}
+              onChangeText={setText}
+              placeholder="Écris un message..."
+              placeholderTextColor={colors.onSurfaceTertiary}
+              style={styles.input}
+              multiline
+            />
+            <Pressable
+              testID="chat-send-btn"
+              onPress={send}
+              disabled={sending || !text.trim()}
+              style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.5 }]}
+            >
+              {sending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable testID="chat-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
+            <Ionicons name="lock-closed" size={18} color={colors.onBrandPrimary} />
+            <Text style={styles.lockText}>Passe Premium pour envoyer des messages</Text>
           </Pressable>
-        </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -169,4 +182,9 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: radius.pill,
     backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
   },
+  lockComposer: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    margin: spacing.md, paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
+  },
+  lockText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
 });

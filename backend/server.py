@@ -90,6 +90,7 @@ class UserPublic(BaseModel):
     level: str
     reliability_avg: float
     reliability_count: int
+    verified: bool = False
     bio: Optional[str] = None
 
 class UserMe(UserPublic):
@@ -108,6 +109,8 @@ class ClubOut(BaseModel):
     region: str
     address: Optional[str] = None
     image_url: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     approved: bool
     announcements_count: int = 0
 
@@ -183,13 +186,16 @@ async def current_user(authorization: Optional[str] = Header(None)):
     return user
 
 def user_public(u: dict) -> dict:
+    count = u.get("reliability_count", 0)
+    avg = round(u.get("reliability_sum", 0) / count, 1) if count > 0 else 0.0
     return {
         "id": u["id"],
         "pseudo": u.get("pseudo", ""),
         "avatar_url": u.get("avatar_url"),
         "level": u.get("level", "Débutant"),
-        "reliability_avg": round(u.get("reliability_sum", 0) / u["reliability_count"], 1) if u.get("reliability_count", 0) > 0 else 0.0,
-        "reliability_count": u.get("reliability_count", 0),
+        "reliability_avg": avg,
+        "reliability_count": count,
+        "verified": avg >= 4.5 and count >= 5,
         "bio": u.get("bio"),
     }
 
@@ -418,6 +424,11 @@ async def list_conversations(user=Depends(current_user)):
     out.sort(key=lambda x: x["last_at"], reverse=True)
     return out
 
+@api_router.get("/messages/unread_count")
+async def unread_count(user=Depends(current_user)):
+    count = await db.messages.count_documents({"to_user_id": user["id"], "read": False})
+    return {"count": count}
+
 @api_router.get("/messages/{other_id}")
 async def get_conversation(other_id: str, user=Depends(current_user)):
     cid = conv_id(user["id"], other_id)
@@ -470,18 +481,18 @@ async def get_file(path: str):
 
 # ============ SEED ============
 DEMO_CLUBS = [
-    {"name": "Padel Horizon Paris", "city": "Paris", "region": "Île-de-France", "address": "12 rue du Padel, 75015 Paris", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Club Padel Lyon Est", "city": "Lyon", "region": "Auvergne-Rhône-Alpes", "address": "45 avenue des Sports, 69003 Lyon", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Marseille Padel Beach", "city": "Marseille", "region": "Provence-Alpes-Côte d'Azur", "address": "8 corniche Kennedy, 13007 Marseille", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Padel Toulouse Sud", "city": "Toulouse", "region": "Occitanie", "address": "22 chemin des Sports, 31400 Toulouse", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Bordeaux Padel Arena", "city": "Bordeaux", "region": "Nouvelle-Aquitaine", "address": "3 quai des Chartrons, 33000 Bordeaux", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Nice Padel Club", "city": "Nice", "region": "Provence-Alpes-Côte d'Azur", "address": "17 promenade des Anglais, 06000 Nice", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Padel Nantes Erdre", "city": "Nantes", "region": "Pays de la Loire", "address": "5 boulevard des Poilus, 44000 Nantes", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Strasbourg Padel", "city": "Strasbourg", "region": "Grand Est", "address": "9 rue de la Paix, 67000 Strasbourg", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Lille Padel Nord", "city": "Lille", "region": "Hauts-de-France", "address": "14 rue Nationale, 59000 Lille", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Rennes Padel Ouest", "city": "Rennes", "region": "Bretagne", "address": "2 place de la République, 35000 Rennes", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Montpellier Padel Sud", "city": "Montpellier", "region": "Occitanie", "address": "18 rue de la Loge, 34000 Montpellier", "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Padel Grenoble Alpes", "city": "Grenoble", "region": "Auvergne-Rhône-Alpes", "address": "6 avenue Alsace-Lorraine, 38000 Grenoble", "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Padel Horizon Paris", "city": "Paris", "region": "Île-de-France", "address": "12 rue du Padel, 75015 Paris", "latitude": 48.8566, "longitude": 2.3522, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Club Padel Lyon Est", "city": "Lyon", "region": "Auvergne-Rhône-Alpes", "address": "45 avenue des Sports, 69003 Lyon", "latitude": 45.7640, "longitude": 4.8357, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Marseille Padel Beach", "city": "Marseille", "region": "Provence-Alpes-Côte d'Azur", "address": "8 corniche Kennedy, 13007 Marseille", "latitude": 43.2965, "longitude": 5.3698, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Padel Toulouse Sud", "city": "Toulouse", "region": "Occitanie", "address": "22 chemin des Sports, 31400 Toulouse", "latitude": 43.6047, "longitude": 1.4442, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Bordeaux Padel Arena", "city": "Bordeaux", "region": "Nouvelle-Aquitaine", "address": "3 quai des Chartrons, 33000 Bordeaux", "latitude": 44.8378, "longitude": -0.5792, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Nice Padel Club", "city": "Nice", "region": "Provence-Alpes-Côte d'Azur", "address": "17 promenade des Anglais, 06000 Nice", "latitude": 43.7102, "longitude": 7.2620, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Padel Nantes Erdre", "city": "Nantes", "region": "Pays de la Loire", "address": "5 boulevard des Poilus, 44000 Nantes", "latitude": 47.2184, "longitude": -1.5536, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Strasbourg Padel", "city": "Strasbourg", "region": "Grand Est", "address": "9 rue de la Paix, 67000 Strasbourg", "latitude": 48.5734, "longitude": 7.7521, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Lille Padel Nord", "city": "Lille", "region": "Hauts-de-France", "address": "14 rue Nationale, 59000 Lille", "latitude": 50.6292, "longitude": 3.0573, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Rennes Padel Ouest", "city": "Rennes", "region": "Bretagne", "address": "2 place de la République, 35000 Rennes", "latitude": 48.1173, "longitude": -1.6778, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+    {"name": "Montpellier Padel Sud", "city": "Montpellier", "region": "Occitanie", "address": "18 rue de la Loge, 34000 Montpellier", "latitude": 43.6108, "longitude": 3.8767, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
+    {"name": "Padel Grenoble Alpes", "city": "Grenoble", "region": "Auvergne-Rhône-Alpes", "address": "6 avenue Alsace-Lorraine, 38000 Grenoble", "latitude": 45.1885, "longitude": 5.7245, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
 ]
 
 @app.on_event("startup")
@@ -502,6 +513,13 @@ async def on_startup():
                 **c,
             })
         logger.info(f"Seeded {len(DEMO_CLUBS)} clubs")
+
+    # backfill coordinates on existing clubs (non-destructive migration)
+    coord_map = {c["name"]: (c["latitude"], c["longitude"]) for c in DEMO_CLUBS}
+    async for club in db.clubs.find({"latitude": {"$exists": False}}):
+        if club["name"] in coord_map:
+            lat, lng = coord_map[club["name"]]
+            await db.clubs.update_one({"id": club["id"]}, {"$set": {"latitude": lat, "longitude": lng}})
 
     # seed demo users
     AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"

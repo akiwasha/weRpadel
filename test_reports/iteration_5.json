@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 5 frontend testing PASSED end-to-end. The iter4 blocker (identityReady stuck false on Test Store) is RESOLVED: paywall-subscribe-btn renders aria-disabled=None, opacity=1, no 'Préparation de ton compte…' hint, and the click chain subscribe -> confirm-ok -> Test Store 'Test valid purchase' successfully activates the 'pro' entitlement. Post-purchase verifications all green: (a) paywall switches to 'Ton abonnement Premium est actif 🎉' branch, (b) profile premium-card shows 'Premium actif — Messagerie et annonces débloquées 🎾' with green bg (rgb(34,197,94)), (c) chat via LeaVolley player profile -> msg-player-btn -> chat-input + chat-send-btn present, message 'TEST_ Hello from Marc' actually sent and rendered as own bubble, (d) club Annonces tab shows ann-content-input + ann-post-btn (no ann-premium-lock), test annonce posted and visible in list, (e) paywall-restore-btn does NOT crash (paywall still renders, no paywall-error surfaced). Fresh-account gating verified by clearing localStorage/cookies and signing up FreeUser<ts>: profile stays 'Passe Premium' with dark bg, club Annonces shows ann-premium-lock=1 with composer hidden, and chat/[id] entered via msg-player-btn shows chat-premium-lock=1 with chat-input=0. Regression: Clubs list (12 cards), Liste/Carte toggle, sign-in, sign-up, sign-out, profile, tab bar all render fine.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet shadow*", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Non-blocking, carried over from iter1."},
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking (upstream lib)."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Nothing critical. Optional cleanup: chase down the two deprecation warnings ('shadow*' -> boxShadow, and pointerEvents-as-prop) in local styles/components — they've been present since iter1."
+  ],
+  "critical_code_review_comments": [
+    "revenuecat.tsx:78 — new identityReady = `!rcEnabled || !!customerInfoQuery.data` is correct and robust: it no longer depends on originalAppUserId which is unreliable on purchases-js Test Store. Confirmed working end-to-end.",
+    "paywall.tsx:33-51 — doPurchase properly closes the confirm modal, awaits purchase(pkg), then checks info.entitlements.active['pro'] before router.back(). Alternative path (isSubscribed branch showing 'Ton abonnement Premium est actif') is also correct if the CustomerInfoUpdate listener fires slightly later.",
+    "chat/[id].tsx:120-145 and club/[id].tsx (ann composer) gating are both correct — verified BOTH branches (subscribed shows input, non-subscribed shows premium-lock).",
+    "player/[id].tsx:124-135 correctly hides msg-player-btn when isMe (verified: self-annonces do not surface the button)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only run)", "frontend": "100% of iter5 checklist — 8/8 scenarios pass" },
+  "seed_data_creation": "Created via UI while testing: (1) annonce 'TEST_ Recherche partenaire samedi 14h niveau intermédiaire' on club Padel Horizon Paris (author MarcPadel), (2) chat message 'TEST_ Hello from Marc' from MarcPadel to LeaVolley, (3) new user 'FreeUser<epoch>' via sign-up (used to test gating).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "RevenueCat Test Store entitlement PERSISTS per browser session (bound to the RC anonymous id in localStorage). To test the non-subscribed state you MUST clear localStorage + cookies AND sign up a fresh account (marc will remain premium in subsequent runs). Console error 'Failed to load resource: net::ERR_NAME_NOT_RESOLVED' comes from RevenueCat trying to reach e.revenue.cat and is harmless in the preview sandbox. The Test Store native dialog uses plain text 'Test valid purchase' / 'Test failed purchase' / 'Cancel' — no testID — but `page.get_by_text('Test valid purchase')` works reliably.",
+  "rca_of_issue": "N/A for iter5 — the iter4 CRITICAL bug (identityReady derived from customerInfo.originalAppUserId always $RCAnonymousID:* on Test Store) was fixed by main agent by weakening the gate to `!rcEnabled || !!customerInfoQuery.data`. Confirmed via UI: the CTA is now enabled immediately once the SDK returns the first CustomerInfo, and the purchase flow completes on the Test Store."
+}

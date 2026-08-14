@@ -4,8 +4,10 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/lib/auth";
+import { useSubscription } from "@/src/lib/revenuecat";
 import { fullUrl } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { VerifiedPill } from "@/src/components/VerifiedBadge";
 
 function StarRow({ value }: { value: number }) {
   return (
@@ -24,6 +26,7 @@ function StarRow({ value }: { value: number }) {
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
+  const { isSubscribed } = useSubscription();
   const router = useRouter();
 
   if (!user) return null;
@@ -49,11 +52,30 @@ export default function ProfileScreen() {
           <Text testID="my-pseudo" style={styles.pseudo}>{user.pseudo}</Text>
           <Text style={styles.email}>{user.email}</Text>
 
+          {user.verified && <VerifiedPill />}
+
           <View style={styles.levelPill}>
             <Ionicons name="trophy" size={14} color={colors.onBrandSecondary} />
             <Text style={styles.levelText}>{user.level}</Text>
           </View>
         </View>
+
+        <Pressable
+          testID="premium-card"
+          onPress={() => router.push("/paywall")}
+          style={[styles.premiumCard, isSubscribed && styles.premiumActive]}
+        >
+          <View style={styles.premiumIcon}>
+            <Ionicons name={isSubscribed ? "star" : "star-outline"} size={22} color={colors.onBrandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumTitle}>{isSubscribed ? "Premium actif" : "Passe Premium"}</Text>
+            <Text style={styles.premiumSub}>
+              {isSubscribed ? "Messagerie et annonces débloquées 🎾" : "Messagerie + annonces · 9,90 €/an"}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
+        </Pressable>
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Fiabilité</Text>
@@ -115,6 +137,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
     padding: spacing.lg, gap: spacing.sm,
   },
+  premiumCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.surfaceInverse, borderRadius: radius.lg, padding: spacing.lg,
+  },
+  premiumActive: { backgroundColor: colors.success },
+  premiumIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  premiumTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurfaceInverse },
+  premiumSub: { fontSize: type.sm, color: colors.onSurfaceInverse, opacity: 0.85, marginTop: 2 },
   cardLabel: { fontSize: type.base, color: colors.onSurfaceSecondary, fontWeight: "700" },
   reliabilityRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 4 },
   reliabilityValue: { fontSize: type.xl, fontWeight: "800", color: colors.onSurface },

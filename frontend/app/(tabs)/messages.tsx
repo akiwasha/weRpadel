@@ -6,9 +6,10 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { VerifiedTick } from "@/src/components/VerifiedBadge";
 
 type Conv = {
-  other_user: { id: string; pseudo: string; avatar_url: string | null; level: string };
+  other_user: { id: string; pseudo: string; avatar_url: string | null; level: string; verified?: boolean };
   last_message: string;
   last_at: string;
   unread: number;
@@ -81,7 +82,10 @@ export default function MessagesScreen() {
               )}
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.rowTop}>
-                  <Text style={[styles.name, item.unread > 0 && { fontWeight: "800" }]} numberOfLines={1}>{item.other_user.pseudo}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1 }}>
+                    <Text style={[styles.name, item.unread > 0 && { fontWeight: "800" }]} numberOfLines={1}>{item.other_user.pseudo}</Text>
+                    {item.other_user.verified && <VerifiedTick size={13} />}
+                  </View>
                   <Text style={styles.time}>{fmt(item.last_at)}</Text>
                 </View>
                 <View style={styles.rowBottom}>

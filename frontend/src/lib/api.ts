@@ -52,6 +52,7 @@ export const api = {
   postAnnouncement: (clubId: string, content: string, availability?: string) =>
     request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, availability }) }),
   conversations: () => request("/messages/conversations"),
+  unreadCount: () => request("/messages/unread_count"),
   conversation: (otherId: string) => request(`/messages/${otherId}`),
   sendMessage: (toId: string, content: string) =>
     request("/messages", { method: "POST", body: JSON.stringify({ to_user_id: toId, content }) }),
