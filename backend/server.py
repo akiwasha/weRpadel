@@ -39,6 +39,10 @@ PUSH_BASE_URL = "https://integrations.emergentagent.com"
 PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
 push_client = httpx.AsyncClient(base_url=PUSH_BASE_URL, headers={"X-Push-Key": PUSH_KEY}, timeout=10.0)
 
+ADMIN_EMAILS = set(e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip())
+def is_admin_user(u: dict) -> bool:
+    return (u.get("email") or "").lower() in ADMIN_EMAILS
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
@@ -155,12 +159,14 @@ class AnnouncementCreate(BaseModel):
     availability: Optional[str] = None
     match_date: Optional[str] = None  # ISO datetime de début du match
     match_end_date: Optional[str] = None  # ISO datetime de fin du match
+    court_price: Optional[float] = Field(default=None, ge=0, le=500)
     party_size: int = Field(default=1, ge=1, le=4)
     offline_names: List[str] = Field(default_factory=list)
 
 class ReplayInput(BaseModel):
     match_date: Optional[str] = None
     match_end_date: Optional[str] = None
+    court_price: Optional[float] = Field(default=None, ge=0, le=500)
 
 class AnnouncementOut(BaseModel):
     id: str
@@ -171,6 +177,7 @@ class AnnouncementOut(BaseModel):
     availability: Optional[str] = None
     match_date: Optional[str] = None
     match_end_date: Optional[str] = None
+    court_price: Optional[float] = None
     status: str = "undated"  # upcoming | ongoing | past | undated
     created_at: str
     players: List[UserPublic] = []
@@ -279,6 +286,7 @@ def user_me(u: dict) -> dict:
         "phone": u.get("phone"),
         "birth_date": u.get("birth_date"),
         "city": u.get("city"),
+        "is_admin": is_admin_user(u),
     }
 
 def match_status(match_date: Optional[str], match_end_date: Optional[str] = None) -> str:
@@ -590,6 +598,20 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
     club["announcements_count"] = 0
     return club
 
+class ClubPriceUpdate(BaseModel):
+    price_per_hour: Optional[float] = Field(default=None, ge=0, le=200)
+
+@api_router.patch("/clubs/{club_id}")
+async def admin_update_club(club_id: str, body: ClubPriceUpdate, user=Depends(current_user)):
+    if not is_admin_user(user):
+        raise HTTPException(403, "Réservé aux administrateurs")
+    club = await db.clubs.find_one({"id": club_id})
+    if not club:
+        raise HTTPException(404, "Club introuvable")
+    await db.clubs.update_one({"id": club_id}, {"$set": {"price_per_hour": body.price_per_hour}})
+    updated = await db.clubs.find_one({"id": club_id}, {"_id": 0})
+    return updated
+
 # ============ ANNOUNCEMENTS (Match requests per Club, 4 players) ============
 MAX_PLAYERS = 4
 
@@ -624,6 +646,7 @@ async def serialize_announcement(a: dict, viewer: dict, club: Optional[dict] = N
         "availability": a.get("availability"),
         "match_date": a.get("match_date"),
         "match_end_date": a.get("match_end_date"),
+        "court_price": a.get("court_price"),
         "status": status,
         "created_at": a["created_at"],
         "players": players,
@@ -684,6 +707,7 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "availability": body.availability,
         "match_date": body.match_date,
         "match_end_date": body.match_end_date,
+        "court_price": body.court_price,
         "players": [user["id"]],
         "offline_names": offline_names,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -710,6 +734,7 @@ async def replay_match(ann_id: str, body: ReplayInput, user=Depends(current_user
         "availability": None,
         "match_date": body.match_date,
         "match_end_date": body.match_end_date,
+        "court_price": body.court_price,
         "players": players,  # same registered players
         "offline_names": offline_names,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -912,19 +937,32 @@ async def get_file(path: str):
     return Response(content=content, media_type=ct)
 
 # ============ SEED ============
-DEMO_CLUBS = [
-    {"name": "Padel Horizon Paris", "city": "Paris", "region": "Île-de-France", "address": "12 rue du Padel, 75015 Paris", "latitude": 48.8566, "longitude": 2.3522, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Club Padel Lyon Est", "city": "Lyon", "region": "Auvergne-Rhône-Alpes", "address": "45 avenue des Sports, 69003 Lyon", "latitude": 45.7640, "longitude": 4.8357, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Marseille Padel Beach", "city": "Marseille", "region": "Provence-Alpes-Côte d'Azur", "address": "8 corniche Kennedy, 13007 Marseille", "latitude": 43.2965, "longitude": 5.3698, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Padel Toulouse Sud", "city": "Toulouse", "region": "Occitanie", "address": "22 chemin des Sports, 31400 Toulouse", "latitude": 43.6047, "longitude": 1.4442, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Bordeaux Padel Arena", "city": "Bordeaux", "region": "Nouvelle-Aquitaine", "address": "3 quai des Chartrons, 33000 Bordeaux", "latitude": 44.8378, "longitude": -0.5792, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Nice Padel Club", "city": "Nice", "region": "Provence-Alpes-Côte d'Azur", "address": "17 promenade des Anglais, 06000 Nice", "latitude": 43.7102, "longitude": 7.2620, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Padel Nantes Erdre", "city": "Nantes", "region": "Pays de la Loire", "address": "5 boulevard des Poilus, 44000 Nantes", "latitude": 47.2184, "longitude": -1.5536, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Strasbourg Padel", "city": "Strasbourg", "region": "Grand Est", "address": "9 rue de la Paix, 67000 Strasbourg", "latitude": 48.5734, "longitude": 7.7521, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Lille Padel Nord", "city": "Lille", "region": "Hauts-de-France", "address": "14 rue Nationale, 59000 Lille", "latitude": 50.6292, "longitude": 3.0573, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Rennes Padel Ouest", "city": "Rennes", "region": "Bretagne", "address": "2 place de la République, 35000 Rennes", "latitude": 48.1173, "longitude": -1.6778, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
-    {"name": "Montpellier Padel Sud", "city": "Montpellier", "region": "Occitanie", "address": "18 rue de la Loge, 34000 Montpellier", "latitude": 43.6108, "longitude": 3.8767, "image_url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"},
-    {"name": "Padel Grenoble Alpes", "city": "Grenoble", "region": "Auvergne-Rhône-Alpes", "address": "6 avenue Alsace-Lorraine, 38000 Grenoble", "latitude": 45.1885, "longitude": 5.7245, "image_url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"},
+# Real, well-known French padel clubs (addresses & prices to be confirmed via admin).
+IMG_A = "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"
+IMG_B = "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"
+REAL_CLUBS = [
+    {"name": "Casa Padel", "city": "Saint-Denis", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9362, "longitude": 2.3574, "image_url": IMG_A},
+    {"name": "4PADEL Aubervilliers", "city": "Aubervilliers", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9146, "longitude": 2.3844, "image_url": IMG_B},
+    {"name": "Padel Attitude", "city": "Chambourcy", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9070, "longitude": 2.0430, "image_url": IMG_A},
+    {"name": "4PADEL Toulouse", "city": "Toulouse", "region": "Occitanie", "address": "Adresse à confirmer", "latitude": 43.6047, "longitude": 1.4442, "image_url": IMG_B},
+    {"name": "Winners Padel", "city": "Toulouse", "region": "Occitanie", "address": "Adresse à confirmer", "latitude": 43.6047, "longitude": 1.4442, "image_url": IMG_A},
+    {"name": "4PADEL Perpignan", "city": "Perpignan", "region": "Occitanie", "address": "Adresse à confirmer", "latitude": 42.6887, "longitude": 2.8948, "image_url": IMG_B},
+    {"name": "4PADEL Bordeaux", "city": "Mérignac", "region": "Nouvelle-Aquitaine", "address": "Adresse à confirmer", "latitude": 44.8386, "longitude": -0.6436, "image_url": IMG_A},
+    {"name": "Urban Padel Bordeaux", "city": "Bordeaux", "region": "Nouvelle-Aquitaine", "address": "Adresse à confirmer", "latitude": 44.8378, "longitude": -0.5792, "image_url": IMG_B},
+    {"name": "4PADEL Nantes", "city": "Saint-Herblain", "region": "Pays de la Loire", "address": "Adresse à confirmer", "latitude": 47.2119, "longitude": -1.6493, "image_url": IMG_A},
+    {"name": "4PADEL Strasbourg", "city": "Strasbourg", "region": "Grand Est", "address": "Adresse à confirmer", "latitude": 48.5734, "longitude": 7.7521, "image_url": IMG_B},
+    {"name": "4PADEL Nancy", "city": "Nancy", "region": "Grand Est", "address": "Adresse à confirmer", "latitude": 48.6921, "longitude": 6.1844, "image_url": IMG_A},
+    {"name": "4PADEL Lyon", "city": "Lyon", "region": "Auvergne-Rhône-Alpes", "address": "Adresse à confirmer", "latitude": 45.7640, "longitude": 4.8357, "image_url": IMG_B},
+    {"name": "All In Padel Lyon", "city": "Lyon", "region": "Auvergne-Rhône-Alpes", "address": "Adresse à confirmer", "latitude": 45.7640, "longitude": 4.8357, "image_url": IMG_A},
+    {"name": "4PADEL Marseille", "city": "Marseille", "region": "Provence-Alpes-Côte d'Azur", "address": "Adresse à confirmer", "latitude": 43.2965, "longitude": 5.3698, "image_url": IMG_B},
+    {"name": "Padel Riviera", "city": "Mougins", "region": "Provence-Alpes-Côte d'Azur", "address": "Adresse à confirmer", "latitude": 43.6003, "longitude": 6.9956, "image_url": IMG_A},
+    {"name": "Urban Padel Lille", "city": "Lille", "region": "Hauts-de-France", "address": "Adresse à confirmer", "latitude": 50.6292, "longitude": 3.0573, "image_url": IMG_B},
+]
+
+OLD_DEMO_NAMES = [
+    "Padel Horizon Paris", "Club Padel Lyon Est", "Marseille Padel Beach", "Padel Toulouse Sud",
+    "Bordeaux Padel Arena", "Nice Padel Club", "Padel Nantes Erdre", "Strasbourg Padel",
+    "Lille Padel Nord", "Rennes Padel Ouest", "Montpellier Padel Sud", "Padel Grenoble Alpes",
 ]
 
 @app.on_event("startup")
@@ -935,37 +973,25 @@ async def on_startup():
     await db.messages.create_index("conv_id")
     await db.messages.create_index([("from_user_id", 1), ("to_user_id", 1)])
 
-    # seed clubs
-    if await db.clubs.count_documents({}) == 0:
-        for c in DEMO_CLUBS:
+    # Remove old placeholder/demo clubs (and their demo announcements)
+    demo = await db.clubs.find({"name": {"$in": OLD_DEMO_NAMES}}).to_list(100)
+    if demo:
+        demo_ids = [c["id"] for c in demo]
+        await db.clubs.delete_many({"id": {"$in": demo_ids}})
+        await db.announcements.delete_many({"club_id": {"$in": demo_ids}})
+        logger.info(f"Removed {len(demo_ids)} old demo clubs")
+
+    # Seed real clubs (idempotent by name); price left as None → "Tarif à confirmer"
+    for c in REAL_CLUBS:
+        if not await db.clubs.find_one({"name": c["name"]}):
             await db.clubs.insert_one({
                 "id": str(uuid.uuid4()),
                 "approved": True,
+                "price_per_hour": None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 **c,
             })
-        logger.info(f"Seeded {len(DEMO_CLUBS)} clubs")
-
-    # backfill coordinates on existing clubs (non-destructive migration)
-    coord_map = {c["name"]: (c["latitude"], c["longitude"]) for c in DEMO_CLUBS}
-    async for club in db.clubs.find({"latitude": {"$exists": False}}):
-        if club["name"] in coord_map:
-            lat, lng = coord_map[club["name"]]
-            await db.clubs.update_one({"id": club["id"]}, {"$set": {"latitude": lat, "longitude": lng}})
-
-    # backfill court prices (€/heure/terrain) on clubs missing a price
-    PRICE_MAP = {
-        "Padel Horizon Paris": 40, "Club Padel Lyon Est": 32, "Marseille Padel Beach": 34,
-        "Padel Toulouse Sud": 28, "Bordeaux Padel Arena": 30, "Nice Padel Club": 36,
-        "Padel Nantes Erdre": 26, "Strasbourg Padel": 28, "Lille Padel Nord": 30,
-        "Rennes Padel Ouest": 26, "Montpellier Padel Sud": 30, "Padel Grenoble Alpes": 28,
-    }
-    async for club in db.clubs.find({"price_per_hour": {"$in": [None, ]}}):
-        if club["name"] in PRICE_MAP:
-            await db.clubs.update_one({"id": club["id"]}, {"$set": {"price_per_hour": PRICE_MAP[club["name"]]}})
-    async for club in db.clubs.find({"price_per_hour": {"$exists": False}}):
-        if club["name"] in PRICE_MAP:
-            await db.clubs.update_one({"id": club["id"]}, {"$set": {"price_per_hour": PRICE_MAP[club["name"]]}})
+    logger.info("Ensured real clubs seeded")
 
     # seed demo users
     AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"

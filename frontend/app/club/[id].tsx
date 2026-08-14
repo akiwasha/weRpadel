@@ -23,6 +23,7 @@ type Announcement = {
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
   match_date: string | null;
   match_end_date: string | null;
+  court_price?: number | null;
   status: string;
   players: Player[];
   offline_players: string[];
@@ -48,6 +49,7 @@ export default function ClubDetail() {
   const [text, setText] = useState("");
   const [matchDate, setMatchDate] = useState<string | null>(null);
   const [matchEndDate, setMatchEndDate] = useState<string | null>(null);
+  const [courtPrice, setCourtPrice] = useState("");
   const [offlineNames, setOfflineNames] = useState<string[]>([]);
   const [offlineInput, setOfflineInput] = useState("");
   const [posting, setPosting] = useState(false);
@@ -71,11 +73,13 @@ export default function ClubDetail() {
     if (!text.trim() || !id) return;
     setPosting(true);
     try {
-      const a = await api.postAnnouncement(id, text.trim(), matchDate, offlineNames, matchEndDate);
+      const priceNum = courtPrice.replace(",", ".").trim() === "" ? null : Number(courtPrice.replace(",", "."));
+      const a = await api.postAnnouncement(id, text.trim(), matchDate, offlineNames, matchEndDate, priceNum);
       setItems([a, ...items]);
       setText("");
       setMatchDate(null);
       setMatchEndDate(null);
+      setCourtPrice("");
       setOfflineNames([]);
       setOfflineInput("");
     } catch (e: any) { console.log(e); }
@@ -199,6 +203,16 @@ export default function ClubDetail() {
               <Text style={styles.priceHint}>Prix indicatif · {club.price_per_hour} €/h le terrain, divisé par 4 joueurs</Text>
             </View>
           )}
+
+          {club.price_per_hour == null && (
+            <View style={styles.priceCard}>
+              <View style={styles.priceHead}>
+                <Ionicons name="pricetag-outline" size={18} color={colors.onSurfaceTertiary} />
+                <Text style={styles.priceTitle}>Location du terrain</Text>
+              </View>
+              <Text style={styles.priceHint}>Tarif à confirmer</Text>
+            </View>
+          )}
         </ScrollView>
       ) : (
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
@@ -283,6 +297,13 @@ export default function ClubDetail() {
                     {item.status === "ongoing" && <View style={[styles.statusTag, styles.statusOngoing]}><Text style={styles.statusOngoingText}>En cours</Text></View>}
                     {item.status === "upcoming" && <View style={[styles.statusTag, styles.statusUpcoming]}><Text style={styles.statusUpcomingText}>À venir</Text></View>}
                   </View>
+
+                  {item.court_price != null && (
+                    <View style={styles.annPricePill}>
+                      <Ionicons name="pricetag" size={13} color={colors.onInfoMuted} />
+                      <Text style={styles.annPriceText}>Terrain {item.court_price} € · {(item.court_price / 4).toFixed(2)} €/joueur</Text>
+                    </View>
+                  )}
 
                   {/* Match — joueurs présents (4 max) */}
                   <View style={styles.matchPanel}>
@@ -421,6 +442,33 @@ export default function ClubDetail() {
                   </View>
                 </View>
                 <MatchDatePicker value={matchDate} onChange={(s, e) => { setMatchDate(s); setMatchEndDate(e); }} testIDPrefix="compose" />
+                <View style={styles.priceInputCard}>
+                  <View style={styles.priceInputRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.priceInputLabel}>Tarif terrain (€)</Text>
+                      <TextInput
+                        testID="ann-court-price-input"
+                        value={courtPrice}
+                        onChangeText={setCourtPrice}
+                        placeholder="ex : 32"
+                        placeholderTextColor={colors.onSurfaceTertiary}
+                        keyboardType="decimal-pad"
+                        style={styles.priceInput}
+                      />
+                    </View>
+                    <Ionicons name="arrow-forward" size={18} color={colors.onSurfaceTertiary} style={{ marginTop: 18 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.priceInputLabel}>Par joueur (÷4)</Text>
+                      <View style={[styles.priceInput, styles.priceInputReadonly]}>
+                        <Text style={styles.priceInputReadonlyText}>
+                          {courtPrice.replace(",", ".").trim() && !isNaN(Number(courtPrice.replace(",", ".")))
+                            ? `${(Number(courtPrice.replace(",", ".")) / 4).toFixed(2)} €`
+                            : "—"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
                 <View style={{ flexDirection: "row", gap: spacing.sm }}>
                   <TextInput
                     testID="ann-content-input"
@@ -513,6 +561,14 @@ const styles = StyleSheet.create({
   datePillPast: { backgroundColor: colors.surfaceTertiary },
   datePillOngoing: { backgroundColor: "#DCE9FF" },
   datePillText: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
+  priceInputCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.md, gap: spacing.xs },
+  priceInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  priceInputLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700", marginBottom: 4 },
+  priceInput: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: type.base, color: colors.onSurface, borderWidth: 1, borderColor: colors.border },
+  priceInputReadonly: { justifyContent: "center" },
+  priceInputReadonlyText: { fontSize: type.base, color: colors.brandPrimary, fontWeight: "800" },
+  annPricePill: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.infoMuted, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 5, marginTop: 6 },
+  annPriceText: { color: colors.onInfoMuted, fontWeight: "700", fontSize: type.sm },
   statusTag: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
   statusTagText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: 11 },
   statusOngoing: { backgroundColor: colors.success },

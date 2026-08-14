@@ -182,6 +182,14 @@ export default function ProfileScreen() {
           <InfoLine icon="location-outline" label="Ville" value={user.city || null} />
         </View>
 
+        {user.is_admin && (
+          <Pressable testID="admin-clubs-btn" onPress={() => router.push("/admin-clubs")} style={styles.adminLink}>
+            <Ionicons name="construct-outline" size={20} color={colors.onInfoMuted} />
+            <Text style={styles.adminLinkText}>Admin · Tarifs des clubs</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onInfoMuted} />
+          </Pressable>
+        )}
+
         <Pressable
           testID="signout-btn"
           onPress={async () => { await signOut(); router.replace("/(auth)/sign-in"); }}
@@ -260,6 +268,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   signOutText: { color: colors.error, fontWeight: "800", fontSize: type.lg },
+  adminLink: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.infoMuted, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.md,
+  },
+  adminLinkText: { flex: 1, color: colors.onInfoMuted, fontWeight: "800", fontSize: type.base },
   deleteAccount: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 12, marginTop: spacing.xs,

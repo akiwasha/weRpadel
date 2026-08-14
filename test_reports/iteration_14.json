@@ -1,0 +1,32 @@
+{
+  "summary": "Full-stack verification of the real-clubs / admin-price / court-price feature. Backend (10/10 pytest passed): GET /api/clubs returns 16 real French clubs (Casa Padel, 4PADEL Aubervilliers, Padel Attitude, 4PADEL Toulouse, etc.), zero old demo clubs (Padel Horizon Paris & co removed on startup), price_per_hour field present (null by default). PATCH /api/clubs/{id} — marc (admin) can update price (42→persisted via GET, then set to null), julie (non-admin) receives 403. /auth/me returns is_admin=true for marc, false for julie. POST /api/clubs/{id}/announcements accepts court_price=32 and returns it; also works with court_price omitted (=null). Frontend E2E (Playwright, 390x844): login as marc → Profile shows 'Admin · Tarifs des clubs' → /admin-clubs lists 16 clubs, saved 35€/h on Casa Padel and value persisted. Reopened Casa Padel detail Info tab: 'Location du terrain' pricing table renders (1h=35€/8.75€ per player, 1h30=52.50/13.13, 2h=70/17.50). Opened Padel Attitude (price null) → info shows 'Tarif à confirmer'. Composer on Padel Attitude: 'Tarif terrain (€)' input (testID ann-court-price-input), entering 32 → 'Par joueur (÷4)' auto-displays 8.00 €. Posted announcement → pastille 'Terrain 32 € · 8.00 €/joueur' visible in feed. Julie: profile page does NOT show admin link, direct /admin-clubs shows 'Accès réservé aux administrateurs'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration14.py",
+    "/app/test_reports/pytest/iter14_results.xml"
+  ],
+  "action_items": [
+    "Optional: Casa Padel's price is now 35€/h after test run (via admin UI). Reset to null via /admin-clubs → clear input → save if you want the clean 'Tarif à confirmer' default in Info tab."
+  ],
+  "critical_code_review_comments": [
+    "server.py > admin_update_club: no upper bound validation on the input via ClubPriceUpdate is present besides ge=0/le=200. Good, but consider logging the admin action (audit trail).",
+    "server.py > on_startup: seed of REAL_CLUBS is idempotent by name (find_one by name) which is correct — running twice does not duplicate. Removal of OLD_DEMO_NAMES is one-shot and safe.",
+    "club/[id].tsx > post(): court_price validation is purely permissive (Number of string); non-numeric input (e.g. 'abc') will send NaN and be rejected by Pydantic (422). Consider guarding on the client to display an inline error. Currently silent failure (posting swallowed in catch).",
+    "admin-clubs.tsx > save(): value validation (isNaN || <0 || >200) silently returns without any user feedback. Consider a toast/inline error when invalid."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration14.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100%"},
+  "seed_data_creation": "Two TEST_ announcements created during backend tests (posted to first club with content 'TEST_ann_price ...' and 'TEST_ann_no_price'); one TEST_compose_price_32 announcement posted on Padel Attitude via frontend. These do not affect functional flows but can be cleaned by main agent if desired. Casa Padel price left at 35€/h (was null) — see action_items.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature is fully working end-to-end. testIDs verified: admin-clubs-btn (profile), admin-club-{id}, admin-price-input-{id}, admin-save-{id}, admin-back, tab-info, tab-chat, ann-court-price-input, ann-content-input, ann-post-btn. Admin control point: ADMIN_EMAILS env var in backend/.env (currently marc@padel.fr). is_admin is derived on every /auth/me and never stored on the user document. price_per_hour bounds: 0..200 (server-enforced). court_price bounds: 0..500.",
+  "rca_of_issue": "N/A - feature verification. All acceptance criteria from the review request met."
+}

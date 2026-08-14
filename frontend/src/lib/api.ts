@@ -39,6 +39,8 @@ export const api = {
   me: () => request("/auth/me"),
   updateMe: (body: any) => request("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),
+  adminSetClubPrice: (id: string, price: number | null) =>
+    request(`/clubs/${id}`, { method: "PATCH", body: JSON.stringify({ price_per_hour: price }) }),
   getUser: (id: string) => request(`/users/${id}`),
   rateUser: (id: string, stars: number) => request(`/users/${id}/rate`, { method: "POST", body: JSON.stringify({ stars }) }),
   toggleFavorite: (id: string) => request(`/users/${id}/favorite`, { method: "POST" }),
@@ -54,11 +56,11 @@ export const api = {
   getClub: (id: string) => request(`/clubs/${id}`),
   createClub: (body: any) => request("/clubs", { method: "POST", body: JSON.stringify(body) }),
   announcements: (clubId: string) => request(`/clubs/${clubId}/announcements`),
-  postAnnouncement: (clubId: string, content: string, matchDate?: string | null, offlineNames?: string[], matchEndDate?: string | null) =>
-    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, match_date: matchDate ?? null, match_end_date: matchEndDate ?? null, offline_names: offlineNames ?? [] }) }),
+  postAnnouncement: (clubId: string, content: string, matchDate?: string | null, offlineNames?: string[], matchEndDate?: string | null, courtPrice?: number | null) =>
+    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, match_date: matchDate ?? null, match_end_date: matchEndDate ?? null, court_price: courtPrice ?? null, offline_names: offlineNames ?? [] }) }),
   matchHistory: () => request("/matches/history"),
-  replayMatch: (annId: string, matchDate: string, matchEndDate?: string | null) =>
-    request(`/announcements/${annId}/replay`, { method: "POST", body: JSON.stringify({ match_date: matchDate, match_end_date: matchEndDate ?? null }) }),
+  replayMatch: (annId: string, matchDate: string, matchEndDate?: string | null, courtPrice?: number | null) =>
+    request(`/announcements/${annId}/replay`, { method: "POST", body: JSON.stringify({ match_date: matchDate, match_end_date: matchEndDate ?? null, court_price: courtPrice ?? null }) }),
   rateMatch: (annId: string, ratings: { user_id: string; stars: number }[]) =>
     request(`/announcements/${annId}/rate`, { method: "POST", body: JSON.stringify({ ratings }) }),
   toggleMute: (annId: string) => request(`/announcements/${annId}/mute`, { method: "POST" }),

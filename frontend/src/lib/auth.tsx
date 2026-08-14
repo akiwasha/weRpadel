@@ -17,6 +17,7 @@ export type User = {
   phone?: string | null;
   birth_date?: string | null;
   city?: string | null;
+  is_admin?: boolean;
 };
 
 export type SignUpInput = {
