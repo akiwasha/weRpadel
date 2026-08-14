@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { Link, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
@@ -69,9 +70,7 @@ export default function SignUp() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="tennisball" size={40} color={colors.onBrandPrimary} />
-            </View>
+            <Image source={require("../../assets/images/logo.png")} style={styles.logo} contentFit="contain" />
             <Text style={styles.title}>Créer un compte</Text>
             <Text style={styles.subtitle}>Rejoins la communauté padel</Text>
           </View>
@@ -208,10 +207,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.surface },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   header: { alignItems: "center", marginBottom: spacing.lg },
-  logoCircle: {
-    width: 72, height: 72, borderRadius: radius.pill,
-    backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
-  },
+  logo: { width: 80, height: 80, borderRadius: 20 },
   title: { fontSize: 28, fontWeight: "800", color: colors.onSurface, marginTop: spacing.lg },
   subtitle: { fontSize: type.base, color: colors.onSurfaceSecondary, marginTop: spacing.xs },
   privacyBanner: {

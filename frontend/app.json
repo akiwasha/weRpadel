@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FF6B15"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.padelplay.y9om9x",

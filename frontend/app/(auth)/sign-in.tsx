@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
@@ -32,9 +32,7 @@ export default function SignIn() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.logoWrap}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="tennisball" size={44} color={colors.onBrandPrimary} />
-            </View>
+            <Image source={require("../../assets/images/logo.png")} style={styles.logo} contentFit="contain" />
             <Text style={styles.title}>weRpadel</Text>
             <Text style={styles.subtitle}>Trouve tes partenaires de padel</Text>
           </View>
@@ -89,11 +87,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.surface },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   logoWrap: { alignItems: "center", marginBottom: spacing.xxxl },
-  logoCircle: {
-    width: 88, height: 88, borderRadius: radius.pill,
-    backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
-    shadowColor: colors.brand, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
-  },
+  logo: { width: 96, height: 96, borderRadius: 22 },
   title: { fontSize: 32, fontWeight: "800", color: colors.onSurface, marginTop: spacing.lg },
   subtitle: { fontSize: type.lg, color: colors.onSurfaceSecondary, marginTop: spacing.xs },
   form: { gap: spacing.md },

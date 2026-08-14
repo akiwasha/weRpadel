@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "574988414722",
+    "project_id": "werpadel",
+    "storage_bucket": "werpadel.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:574988414722:android:53c3286494f9f5603cdc1b",
+        "android_client_info": {
+          "package_name": "com.emergent.padelplay.y9om9x"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALOQnz_PEbqxfg8FSiit9KKNlIt_4rn5Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
