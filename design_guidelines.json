@@ -1,0 +1,161 @@
+{
+  "app_name": "PadelConnect",
+  "personality": "4 Tactile / Playful LIGHT",
+  "personality_one_liner": "A friendly, energetic, and highly approachable community app designed to connect amateur Padel players.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#1A1D1F",
+    "surfaceSecondary": "#F4F5F7",
+    "onSurfaceSecondary": "#4E5358",
+    "surfaceTertiary": "#E9EBEF",
+    "onSurfaceTertiary": "#6A7178",
+    "surfaceInverse": "#1A1D1F",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#F25C05",
+    "brandPrimary": "#FF6B15",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FFEDE3",
+    "onBrandSecondary": "#FF6B15",
+    "brandTertiary": "#FFF5F0",
+    "onBrandTertiary": "#E24F04",
+    "success": "#22C55E",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#FFFFFF",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#6A7178",
+    "onInfo": "#FFFFFF",
+    "border": "#E9EBEF",
+    "borderStrong": "#D1D5DB",
+    "divider": "#F4F5F7"
+  },
+  "typography": {
+    "displayFontFamily": "Figtree",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous, breathable rhythm. Use chunky paddings (lg, xl) for cards and sections. Make tap targets oversized (min 48pt).",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 2,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": [
+      "No glassmorphism for Tactile/Playful. Use solid chunky colors, soft shadows, and clean borders."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home / Clubs Directory",
+      "purpose": "Discover padel clubs by region and view active players looking for matches.",
+      "states": {
+        "loading": "Chunky skeleton cards with soft pulsing animation.",
+        "empty": "Playful illustration of an empty court with a 'Suggest a Club' button.",
+        "error": "Friendly error message with a bright orange 'Try Again' button."
+      },
+      "layout": "Sticky top search bar and region filters (pill shape). A vertical list of chunky club cards. Each card has a real photo cover (with gradient-to-dark scrim if text is overlaid), club name, location, and a badge indicating active 'Looking for players' requests. Generous padding around the cards to make them feel touchable."
+    },
+    {
+      "name": "Club Detail & Group Chat",
+      "purpose": "Hub for a specific club showing its details and the community announcements.",
+      "states": {
+        "loading": "Centered brand-colored spinner.",
+        "empty": "Illustration of a padel racket resting; 'Be the first to post an announcement!'",
+        "error": "Oops text with a 'Reload' button."
+      },
+      "layout": "Hero image at the top with club name and 'Join Chat' CTA. Below is a segmented control (Info / Announcements). The Announcements tab acts as a group chat feed: stacked message bubbles/cards from users stating their availability. Sticky 'Post Announcement' CTA anchored at the bottom above safe area."
+    },
+    {
+      "name": "Player Profile",
+      "purpose": "Showcase a player's level, reliability rating, and provide an action to message them.",
+      "states": {
+        "loading": "Avatar skeleton pulsing.",
+        "empty": "N/A",
+        "error": "Cannot load profile, retry button."
+      },
+      "layout": "Centered large avatar. Name and pseudo in display font. A large interactive 'Reliability Stars' component (e.g. 4.5/5 stars with big star icons). A pill badge showing their playing level (Beginner, Intermediate, Advanced). A wide, pill-shaped primary 'Message Player' CTA pinned at the bottom. Below the avatar, a section showing 'Recent Activity' or preferred clubs."
+    },
+    {
+      "name": "Messages Inbox",
+      "purpose": "List of active 1-to-1 conversations with other players.",
+      "states": {
+        "loading": "List of skeleton rows.",
+        "empty": "Illustration of a quiet inbox with a prompt to 'Find a club to connect with players'.",
+        "error": "Failed to load chats, pull to refresh."
+      },
+      "layout": "Standard list view with generous row height (72pt+). Each row has the player's avatar, name, last message snippet, and timestamp. Unread messages have a bold font and a small brandPrimary dot."
+    },
+    {
+      "name": "Private Chat",
+      "purpose": "1-to-1 direct messaging to arrange a padel match.",
+      "states": {
+        "loading": "Spinner in the center.",
+        "empty": "Start of conversation timestamp.",
+        "error": "Failed to send message red exclamation mark."
+      },
+      "layout": "Classic chat layout. Incoming messages are surfaceSecondary bubbles; outgoing are brandPrimary bubbles with onBrandPrimary text. Input composer pinned at the bottom with a rounded text field and a circular send button. The header shows the player's avatar and name, tapping it goes to their profile."
+    }
+  ],
+  "images": {
+    "hero_court_1": {
+      "url": "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwyfHxwYWRlbCUyMGNvdXJ0fGVufDB8fHx8MTc4NjcyMzQ5NXww&ixlib=rb-4.1.0&q=85",
+      "alt": "tennis rackets and balls on a tennis court"
+    },
+    "hero_court_2": {
+      "url": "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Padel racket and ball resting on a vibrant blue court, next to a net, under bright daylight."
+    },
+    "avatar_male": {
+      "url": "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwxfHxhbWF0ZXVyJTIwdGVubmlzJTIwcGxheWVyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzg2NzIzNDk1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "a man holding a tennis racquet on top of a tennis court"
+    },
+    "avatar_female": {
+      "url": "https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwyfHxhbWF0ZXVyJTIwdGVubmlzJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzg2NzIzNDk1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "woman in black jacket and black pants holding tennis racket under blue sky during daytime"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the Tactile/Playful theme strictly: use chunky borders, pill-shaped buttons, and rounded (lg/pill) cards.",
+    "Do NOT use any blue colors in the UI (strict ban). The brand color is vibrant orange (#FF6B15) to evoke clay courts and energy.",
+    "For the clubs directory, use the 'hero_court' images provided as background covers for the cards. Make sure to apply a gradient-to-dark scrim (top-to-bottom, transparent to 70%+ surfaceInverse) over the image before placing white text on top.",
+    "The primary CTA (e.g., 'Message Player' or 'Post Announcement') should always be sticky at the bottom of the screen, floating above the scrollable content with proper safe-area bottom padding.",
+    "Ensure touch targets are large and accessible (minimum 48x48pt).",
+    "Use Phosphor icons consistently (filled for active tabs, outlined for inactive).",
+    "Implement the 5-star rating system visually using star icons inside the Player Profile."
+  ]
+}
