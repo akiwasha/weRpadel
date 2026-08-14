@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 2 backend verification: 33/33 pytest tests pass (17 new + 16 regression). Bug fix VERIFIED: POST /api/clubs still returns approved=false, but GET /api/clubs now correctly returns the author's own pending club (via $or approved:true OR suggested_by:me), while other users do NOT see it. Also confirmed pending region does not leak in GET /api/clubs/regions. Seed data VERIFIED: all 6 demo users login (marc/julie/thomas/sophie/kevin/lea @padel.fr / password123), each has non-null avatar_url, level ∈ LEVELS, reliability_avg > 0 and reliability_count > 0. Clubs list: 12 clubs; >=3 clubs carry announcements_count>0; total announcements across clubs is 12 (≈10 seeded + 2 accumulated TEST ones). Announcements are correctly enriched with author (pseudo/level/reliability_avg > 0 for demo users). Filters: ?region=Occitanie returns Padel Toulouse Sud + Montpellier Padel Sud; ?search=Paris matches Padel Horizon Paris; combined region+search works. Regression: login marc, GET /api/auth/me, POST /api/messages private DM, POST /api/users/{id}/rate all pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_padelconnect.py",
+    "/app/test_reports/pytest/iter2_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No backend action items — bug fix and new seed data are working as specified. Frontend testing was NOT requested this iteration."
+  ],
+  "critical_code_review_comments": [
+    "list_clubs query composition is correct: base {$or: [approved, suggested_by:me]} then wrapped with $and when region and/or search filters are added (verified via test_region_and_search_combined + test_pending_club_hidden_from_regions_list).",
+    "Seed is idempotent-per-collection but not idempotent per user set: adding a 7th demo user later would require a wipe (current DB was wiped this iteration as noted).",
+    "Announcement seed picks random author across all users incl. TEST_ users if present; because seed only runs when announcements collection is empty, this is fine after a fresh wipe.",
+    "GET /api/clubs/regions correctly filters approved:True — verified pending region 'TestRegionXYZ' does NOT leak."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration2.py (new — 17 tests covering the bug fix, 6 demo users, announcements badges, enriched author, filters, regression)"
+  ],
+  "success_rate": {"backend": "100% (33/33)", "frontend": "not tested this iteration (backend-only request)"},
+  "seed_data_creation": "Test artefacts remain in DB: one TEST_PendingClub_<hex> suggested by Marc (unapproved, only visible to Marc), one 'TEST regression DM <hex>' Marc→Julie. No new user creation this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully green after iteration 2. Bug fix on GET /api/clubs (author sees own pending, others don't) validated. Demo dataset: 6 users w/ avatars + ratings, 12 clubs, ~10 announcements in first 6 clubs. Test file /app/backend/tests/test_iteration2.py is the current regression suite. Frontend still has minor items from iteration 1 (missing testIDs on sign-in/sign-up, deprecated shadow* style prop warning, composer bar shadow) — not blocking.",
+  "rca_of_issue": "N/A — no failures. Bug from iteration 1 (suggested clubs invisible to author) is fixed by the $or clause at server.py:291."
+}

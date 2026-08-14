@@ -504,24 +504,64 @@ async def on_startup():
         logger.info(f"Seeded {len(DEMO_CLUBS)} clubs")
 
     # seed demo users
+    AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"
+    AV_F = "https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?w=300"
     if await db.users.count_documents({}) == 0:
-        for u in [
-            {"email": "marc@padel.fr", "pseudo": "MarcPadel", "level": "Intermédiaire"},
-            {"email": "julie@padel.fr", "pseudo": "JulieSmash", "level": "Confirmé"},
-        ]:
+        demo_users = [
+            {"email": "marc@padel.fr", "pseudo": "MarcPadel", "level": "Intermédiaire", "avatar": AV_M, "sum": 22, "count": 5, "bio": "Je joue tous les week-ends, ambiance détendue !"},
+            {"email": "julie@padel.fr", "pseudo": "JulieSmash", "level": "Confirmé", "avatar": AV_F, "sum": 28, "count": 6, "bio": "Compétitrice mais fair-play. Toujours partante pour un match."},
+            {"email": "thomas@padel.fr", "pseudo": "ThomasR", "level": "Débutant", "avatar": AV_M, "sum": 8, "count": 2, "bio": "Débute le padel, cherche des joueurs patients."},
+            {"email": "sophie@padel.fr", "pseudo": "SophiePad", "level": "Confirmé", "avatar": AV_F, "sum": 19, "count": 4, "bio": None},
+            {"email": "kevin@padel.fr", "pseudo": "KevinAce", "level": "Expert", "avatar": AV_M, "sum": 24, "count": 5, "bio": "Ancien tennisman reconverti au padel."},
+            {"email": "lea@padel.fr", "pseudo": "LeaVolley", "level": "Intermédiaire", "avatar": AV_F, "sum": 14, "count": 3, "bio": "Dispo en soirée et le samedi matin."},
+        ]
+        for u in demo_users:
             await db.users.insert_one({
                 "id": str(uuid.uuid4()),
                 "email": u["email"],
                 "pseudo": u["pseudo"],
                 "pseudo_lower": u["pseudo"].lower(),
                 "password_hash": hash_pw("password123"),
-                "avatar_url": None,
+                "avatar_url": u["avatar"],
                 "level": u["level"],
-                "bio": None,
-                "reliability_sum": 0,
-                "reliability_count": 0,
+                "bio": u["bio"],
+                "reliability_sum": u["sum"],
+                "reliability_count": u["count"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
+        logger.info(f"Seeded {len(demo_users)} demo users")
+
+    # seed demo announcements across clubs
+    if await db.announcements.count_documents({}) == 0:
+        all_users = await db.users.find({}).to_list(50)
+        all_clubs = await db.clubs.find({"approved": True}).to_list(50)
+        if all_users and all_clubs:
+            texts = [
+                ("Je cherche un partenaire pour un double ce week-end, niveau sympa et détendu !", "Samedi 14h-16h"),
+                ("Il nous manque 1 joueur pour compléter notre partie. Qui est chaud ?", "Dimanche 10h"),
+                ("Envie de progresser, je cherche des joueurs réguliers pour jouer en semaine.", "Mardi & Jeudi soir"),
+                ("Match amical ce soir, terrain réservé, il manque un joueur !", "Ce soir 19h"),
+                ("Débutant motivé cherche à jouer avec des joueurs bienveillants 🙂", "Flexible en journée"),
+                ("On monte une équipe pour un petit tournoi interne, rejoignez-nous !", "Weekend prochain"),
+            ]
+            import random
+            seeded = 0
+            # put 1-2 announcements in the first 6 clubs
+            for i, club in enumerate(all_clubs[:6]):
+                for _ in range(random.randint(1, 2)):
+                    author = random.choice(all_users)
+                    txt, avail = random.choice(texts)
+                    await db.announcements.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "club_id": club["id"],
+                        "author_id": author["id"],
+                        "content": txt,
+                        "availability": avail,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    seeded += 1
+            logger.info(f"Seeded {seeded} demo announcements")
+
     # init storage in background
     try:
         await run_in_threadpool(init_storage)
