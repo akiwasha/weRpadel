@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
@@ -11,6 +12,7 @@ import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedTick } from "@/src/components/VerifiedBadge";
 
+type Player = { id: string; pseudo: string; avatar_url: string | null; level: string };
 type Announcement = {
   id: string;
   club_id: string;
@@ -18,7 +20,15 @@ type Announcement = {
   availability: string | null;
   created_at: string;
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
+  players: Player[];
+  max_players: number;
+  slots_left: number;
+  is_full: boolean;
+  is_member: boolean;
+  is_author: boolean;
 };
+
+const LEVEL_FILTERS = ["Tous", "Débutant", "Intermédiaire", "Confirmé", "Expert"];
 
 export default function ClubDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +42,8 @@ export default function ClubDetail() {
   const [availability, setAvailability] = useState("");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [levelFilter, setLevelFilter] = useState("Tous");
+  const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -57,11 +69,22 @@ export default function ClubDetail() {
     finally { setPosting(false); }
   };
 
+  const toggleJoin = async (ann: Announcement) => {
+    if (!isSubscribed) { router.push("/paywall"); return; }
+    setJoiningId(ann.id);
+    try {
+      const updated = ann.is_member ? await api.leaveAnnouncement(ann.id) : await api.joinAnnouncement(ann.id);
+      setItems((prev) => prev.map((i) => (i.id === ann.id ? updated : i)));
+    } catch (e) { console.log(e); }
+    finally { setJoiningId(null); }
+  };
+
   if (loading || !club) {
     return <View style={styles.centerLoader}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>;
   }
 
   const isMine = (uid: string) => user?.id === uid;
+  const filtered = levelFilter === "Tous" ? items : items.filter((i) => i.author.level === levelFilter);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -129,59 +152,163 @@ export default function ClubDetail() {
         </ScrollView>
       ) : (
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
-          <FlatList
-            data={items}
-            keyExtractor={(i) => i.id}
-            contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl }}
-            ListEmptyComponent={
-              <View style={{ alignItems: "center", paddingVertical: spacing.xxxl, gap: spacing.md }}>
-                <Ionicons name="megaphone-outline" size={56} color={colors.onSurfaceTertiary} />
-                <Text style={{ color: colors.onSurfaceSecondary, fontSize: type.base, textAlign: "center" }}>
-                  Sois le premier à poster une annonce !
-                </Text>
-              </View>
-            }
-            renderItem={({ item }) => (
-              <View style={styles.ann}>
+          <View style={styles.filterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: "center" }}
+            >
+              {LEVEL_FILTERS.map((lv) => (
                 <Pressable
-                  testID={`ann-author-${item.id}`}
-                  onPress={() => !isMine(item.author.id) && router.push(`/player/${item.author.id}`)}
-                  style={styles.annHead}
+                  key={lv}
+                  testID={`level-filter-${lv}`}
+                  onPress={() => setLevelFilter(lv)}
+                  style={[styles.filterChip, levelFilter === lv && styles.filterChipActive]}
                 >
-                  {item.author.avatar_url ? (
-                    <Image source={{ uri: fullUrl(item.author.avatar_url)! }} style={styles.annAvatar} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.annAvatar, styles.annAvatarFallback]}>
-                      <Text style={{ color: colors.brandPrimary, fontWeight: "800" }}>{item.author.pseudo[0]?.toUpperCase()}</Text>
+                  <Text style={[styles.filterChipText, levelFilter === lv && styles.filterChipTextActive]}>{lv}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <FlatList
+              data={filtered}
+              keyExtractor={(i) => i.id}
+              scrollEnabled={isSubscribed}
+              contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl }}
+              ListEmptyComponent={
+                <View style={{ alignItems: "center", paddingVertical: spacing.xxxl, gap: spacing.md }}>
+                  <Ionicons name="megaphone-outline" size={56} color={colors.onSurfaceTertiary} />
+                  <Text style={{ color: colors.onSurfaceSecondary, fontSize: type.base, textAlign: "center" }}>
+                    {levelFilter === "Tous" ? "Sois le premier à créer un match !" : `Aucun match niveau ${levelFilter}`}
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.ann}>
+                  <Pressable
+                    testID={`ann-author-${item.id}`}
+                    onPress={() => !isMine(item.author.id) && router.push(`/player/${item.author.id}`)}
+                    style={styles.annHead}
+                  >
+                    {item.author.avatar_url ? (
+                      <Image source={{ uri: fullUrl(item.author.avatar_url)! }} style={styles.annAvatar} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.annAvatar, styles.annAvatarFallback]}>
+                        <Text style={{ color: colors.brandPrimary, fontWeight: "800" }}>{item.author.pseudo[0]?.toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Text style={styles.annName}>{item.author.pseudo}</Text>
+                        {item.author.verified && <VerifiedTick size={14} />}
+                      </View>
+                      <Text style={styles.annMeta}>{item.author.level} · ⭐ {item.author.reliability_avg.toFixed(1)}</Text>
+                    </View>
+                    {!isMine(item.author.id) && (
+                      <Pressable
+                        testID={`ann-msg-${item.id}`}
+                        onPress={() => router.push(`/chat/${item.author.id}`)}
+                        style={styles.msgIcon}
+                      >
+                        <Ionicons name="chatbubble" size={18} color={colors.onBrandPrimary} />
+                      </Pressable>
+                    )}
+                  </Pressable>
+                  <Text style={styles.annContent}>{item.content}</Text>
+                  {item.availability && (
+                    <View style={styles.availPill}>
+                      <Ionicons name="time-outline" size={14} color={colors.onBrandSecondary} />
+                      <Text style={styles.availTxt}>{item.availability}</Text>
                     </View>
                   )}
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      <Text style={styles.annName}>{item.author.pseudo}</Text>
-                      {item.author.verified && <VerifiedTick size={14} />}
+
+                  {/* Match panel — 4 joueurs */}
+                  <View style={styles.matchPanel}>
+                    <View style={styles.playersRow}>
+                      {item.players.map((p, idx) => (
+                        <View key={p.id} style={[styles.playerAvatar, idx > 0 && { marginLeft: -10 }]}>
+                          {p.avatar_url ? (
+                            <Image source={{ uri: fullUrl(p.avatar_url)! }} style={styles.playerImg} contentFit="cover" />
+                          ) : (
+                            <View style={[styles.playerImg, styles.playerFallback]}>
+                              <Text style={{ color: colors.brandPrimary, fontWeight: "800", fontSize: 12 }}>{p.pseudo[0]?.toUpperCase()}</Text>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                      {Array.from({ length: item.slots_left }).map((_, i) => (
+                        <View key={`empty-${i}`} style={[styles.playerAvatar, styles.emptySlot, (item.players.length > 0 || i > 0) && { marginLeft: -10 }]}>
+                          <Ionicons name="add" size={16} color={colors.onSurfaceTertiary} />
+                        </View>
+                      ))}
                     </View>
-                    <Text style={styles.annMeta}>{item.author.level} · ⭐ {item.author.reliability_avg.toFixed(1)}</Text>
+
+                    {item.is_full ? (
+                      <View style={styles.confirmedBadge}>
+                        <Ionicons name="checkmark-circle" size={16} color={colors.onSuccess} />
+                        <Text style={styles.confirmedText}>Match confirmé · 4/4</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.slotsText}>
+                        {item.players.length}/4 · {item.slots_left} place{item.slots_left > 1 ? "s" : ""}
+                      </Text>
+                    )}
                   </View>
-                  {!isMine(item.author.id) && (
+
+                  {item.is_author ? (
+                    <View style={[styles.joinBtn, styles.joinAuthor]}>
+                      <Ionicons name="ribbon" size={16} color={colors.onSurfaceSecondary} />
+                      <Text style={styles.joinAuthorText}>Ton match</Text>
+                    </View>
+                  ) : item.is_member ? (
                     <Pressable
-                      testID={`ann-msg-${item.id}`}
-                      onPress={() => router.push(`/chat/${item.author.id}`)}
-                      style={styles.msgIcon}
+                      testID={`ann-leave-${item.id}`}
+                      onPress={() => toggleJoin(item)}
+                      disabled={joiningId === item.id}
+                      style={[styles.joinBtn, styles.leaveBtn]}
                     >
-                      <Ionicons name="chatbubble" size={18} color={colors.onBrandPrimary} />
+                      {joiningId === item.id ? <ActivityIndicator color={colors.error} /> : (
+                        <><Ionicons name="exit-outline" size={16} color={colors.error} /><Text style={styles.leaveText}>Quitter le match</Text></>
+                      )}
+                    </Pressable>
+                  ) : item.is_full ? (
+                    <View style={[styles.joinBtn, styles.fullBtn]}>
+                      <Text style={styles.fullText}>Match complet</Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      testID={`ann-join-${item.id}`}
+                      onPress={() => toggleJoin(item)}
+                      disabled={joiningId === item.id}
+                      style={[styles.joinBtn, styles.joinActive]}
+                    >
+                      {joiningId === item.id ? <ActivityIndicator color={colors.onBrandPrimary} /> : (
+                        <><Ionicons name="tennisball" size={16} color={colors.onBrandPrimary} /><Text style={styles.joinText}>Rejoindre le match</Text></>
+                      )}
                     </Pressable>
                   )}
-                </Pressable>
-                <Text style={styles.annContent}>{item.content}</Text>
-                {item.availability && (
-                  <View style={styles.availPill}>
-                    <Ionicons name="time-outline" size={14} color={colors.onBrandSecondary} />
-                    <Text style={styles.availTxt}>{item.availability}</Text>
+                </View>
+              )}
+            />
+
+            {/* Aperçu flouté pour non-abonnés */}
+            {!isSubscribed && filtered.length > 0 && (
+              <BlurView intensity={22} tint="light" style={styles.blurOverlay}>
+                <View style={styles.blurCard}>
+                  <View style={styles.blurIcon}>
+                    <Ionicons name="lock-closed" size={26} color={colors.onBrandPrimary} />
                   </View>
-                )}
-              </View>
+                  <Text style={styles.blurTitle}>{filtered.length} match{filtered.length > 1 ? "s" : ""} en attente de joueurs</Text>
+                  <Text style={styles.blurSub}>Abonne-toi pour voir les annonces, rejoindre des matchs et contacter les joueurs</Text>
+                  <Pressable testID="blur-premium-btn" onPress={() => router.push("/paywall")} style={styles.blurBtn}>
+                    <Text style={styles.blurBtnText}>Abonne-toi · 9,90 €/an</Text>
+                  </Pressable>
+                </View>
+              </BlurView>
             )}
-          />
+          </View>
 
           <View style={styles.composer}>
             {isSubscribed ? (
@@ -217,7 +344,7 @@ export default function ClubDetail() {
             ) : (
               <Pressable testID="ann-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
                 <Ionicons name="lock-closed" size={18} color={colors.onBrandPrimary} />
-                <Text style={styles.lockText}>Passe Premium pour poster une annonce</Text>
+                <Text style={styles.lockText}>Abonne-toi pour poster une annonce</Text>
               </Pressable>
             )}
           </View>
@@ -269,6 +396,53 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSecondary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill,
   },
   availTxt: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
+  filterRow: { height: 56, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.divider },
+  filterChip: {
+    flexShrink: 0, height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: colors.border,
+  },
+  filterChipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
+  filterChipText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.base },
+  filterChipTextActive: { color: colors.onSurfaceInverse },
+  matchPanel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs },
+  playersRow: { flexDirection: "row", alignItems: "center" },
+  playerAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.surfaceSecondary },
+  playerImg: { width: "100%", height: "100%", borderRadius: 17 },
+  playerFallback: { backgroundColor: colors.brandSecondary, alignItems: "center", justifyContent: "center" },
+  emptySlot: {
+    backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center",
+    borderStyle: "dashed", borderColor: colors.borderStrong,
+  },
+  confirmedBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
+  },
+  confirmedText: { color: colors.onSuccess, fontWeight: "800", fontSize: type.sm },
+  slotsText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.base },
+  joinBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    borderRadius: radius.pill, paddingVertical: 12, marginTop: spacing.xs, minHeight: 44,
+  },
+  joinActive: { backgroundColor: colors.brandPrimary },
+  joinText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  leaveBtn: { borderWidth: 1.5, borderColor: colors.error },
+  leaveText: { color: colors.error, fontWeight: "800", fontSize: type.base },
+  fullBtn: { backgroundColor: colors.surfaceTertiary },
+  fullText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: type.base },
+  joinAuthor: { backgroundColor: colors.surfaceTertiary },
+  joinAuthorText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.base },
+  blurOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  blurCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.xl, alignItems: "center", gap: spacing.sm,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8,
+    maxWidth: 320,
+  },
+  blurIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", marginBottom: spacing.xs },
+  blurTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface, textAlign: "center" },
+  blurSub: { fontSize: type.base, color: colors.onSurfaceSecondary, textAlign: "center", lineHeight: 20 },
+  blurBtn: { backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: 14, marginTop: spacing.sm },
+  blurBtnText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
   composer: {
     padding: spacing.md, gap: spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,

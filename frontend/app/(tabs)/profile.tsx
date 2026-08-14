@@ -62,14 +62,14 @@ export default function ProfileScreen() {
 
         <Pressable
           testID="premium-card"
-          onPress={() => router.push("/paywall")}
+          onPress={() => router.push(isSubscribed ? "/manage-subscription" : "/paywall")}
           style={[styles.premiumCard, isSubscribed && styles.premiumActive]}
         >
           <View style={styles.premiumIcon}>
             <Ionicons name={isSubscribed ? "star" : "star-outline"} size={22} color={colors.onBrandPrimary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.premiumTitle}>{isSubscribed ? "Premium actif" : "Passe Premium"}</Text>
+            <Text style={styles.premiumTitle}>{isSubscribed ? "Premium actif" : "Abonne-toi"}</Text>
             <Text style={styles.premiumSub}>
               {isSubscribed ? "Messagerie et annonces débloquées 🎾" : "Messagerie + annonces · 9,90 €/an"}
             </Text>

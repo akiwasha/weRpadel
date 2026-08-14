@@ -51,6 +51,8 @@ export const api = {
   announcements: (clubId: string) => request(`/clubs/${clubId}/announcements`),
   postAnnouncement: (clubId: string, content: string, availability?: string) =>
     request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, availability }) }),
+  joinAnnouncement: (annId: string) => request(`/announcements/${annId}/join`, { method: "POST" }),
+  leaveAnnouncement: (annId: string) => request(`/announcements/${annId}/leave`, { method: "POST" }),
   conversations: () => request("/messages/conversations"),
   unreadCount: () => request("/messages/unread_count"),
   conversation: (otherId: string) => request(`/messages/${otherId}`),

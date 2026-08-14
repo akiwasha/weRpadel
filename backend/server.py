@@ -131,6 +131,12 @@ class AnnouncementOut(BaseModel):
     content: str
     availability: Optional[str] = None
     created_at: str
+    players: List[UserPublic] = []
+    max_players: int = 4
+    slots_left: int = 3
+    is_full: bool = False
+    is_member: bool = False
+    is_author: bool = False
 
 class MessageCreate(BaseModel):
     to_user_id: str
@@ -341,26 +347,44 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
     club["announcements_count"] = 0
     return club
 
-# ============ ANNOUNCEMENTS (Group Chat per Club) ============
+# ============ ANNOUNCEMENTS (Match requests per Club, 4 players) ============
+MAX_PLAYERS = 4
+
+async def serialize_announcement(a: dict, current_user_id: str) -> dict:
+    author = await db.users.find_one({"id": a["author_id"]})
+    player_ids = a.get("players") or [a["author_id"]]
+    players = []
+    for pid in player_ids:
+        pu = await db.users.find_one({"id": pid})
+        if pu:
+            players.append(user_public(pu))
+    count = len(players)
+    return {
+        "id": a["id"],
+        "club_id": a["club_id"],
+        "author": user_public(author) if author else None,
+        "content": a["content"],
+        "availability": a.get("availability"),
+        "created_at": a["created_at"],
+        "players": players,
+        "max_players": MAX_PLAYERS,
+        "slots_left": max(0, MAX_PLAYERS - count),
+        "is_full": count >= MAX_PLAYERS,
+        "is_member": current_user_id in player_ids,
+        "is_author": current_user_id == a["author_id"],
+    }
+
 @api_router.get("/clubs/{club_id}/announcements")
-async def list_announcements(club_id: str, _=Depends(current_user)):
+async def list_announcements(club_id: str, user=Depends(current_user)):
     club = await db.clubs.find_one({"id": club_id})
     if not club:
         raise HTTPException(404, "Club introuvable")
     items = await db.announcements.find({"club_id": club_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
-    # enrich with author
     out = []
     for a in items:
-        author = await db.users.find_one({"id": a["author_id"]})
-        if author:
-            out.append({
-                "id": a["id"],
-                "club_id": a["club_id"],
-                "author": user_public(author),
-                "content": a["content"],
-                "availability": a.get("availability"),
-                "created_at": a["created_at"],
-            })
+        s = await serialize_announcement(a, user["id"])
+        if s["author"]:
+            out.append(s)
     return out
 
 @api_router.post("/clubs/{club_id}/announcements")
@@ -375,17 +399,38 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "author_id": user["id"],
         "content": body.content,
         "availability": body.availability,
+        "players": [user["id"]],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(ann)
-    return {
-        "id": ann_id,
-        "club_id": club_id,
-        "author": user_public(user),
-        "content": body.content,
-        "availability": body.availability,
-        "created_at": ann["created_at"],
-    }
+    return await serialize_announcement(ann, user["id"])
+
+@api_router.post("/announcements/{ann_id}/join")
+async def join_announcement(ann_id: str, user=Depends(current_user)):
+    ann = await db.announcements.find_one({"id": ann_id})
+    if not ann:
+        raise HTTPException(404, "Annonce introuvable")
+    players = ann.get("players") or [ann["author_id"]]
+    if user["id"] in players:
+        return await serialize_announcement(ann, user["id"])
+    if len(players) >= MAX_PLAYERS:
+        raise HTTPException(409, "Match complet (4 joueurs)")
+    players.append(user["id"])
+    await db.announcements.update_one({"id": ann_id}, {"$set": {"players": players}})
+    ann["players"] = players
+    return await serialize_announcement(ann, user["id"])
+
+@api_router.post("/announcements/{ann_id}/leave")
+async def leave_announcement(ann_id: str, user=Depends(current_user)):
+    ann = await db.announcements.find_one({"id": ann_id})
+    if not ann:
+        raise HTTPException(404, "Annonce introuvable")
+    if user["id"] == ann["author_id"]:
+        raise HTTPException(400, "L'organisateur ne peut pas quitter son match")
+    players = [p for p in (ann.get("players") or [ann["author_id"]]) if p != user["id"]]
+    await db.announcements.update_one({"id": ann_id}, {"$set": {"players": players}})
+    ann["players"] = players
+    return await serialize_announcement(ann, user["id"])
 
 # ============ MESSAGES (Private DM) ============
 def conv_id(a: str, b: str) -> str:

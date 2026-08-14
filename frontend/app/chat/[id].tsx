@@ -140,7 +140,7 @@ export default function Chat() {
         ) : (
           <Pressable testID="chat-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
             <Ionicons name="lock-closed" size={18} color={colors.onBrandPrimary} />
-            <Text style={styles.lockText}>Passe Premium pour envoyer des messages</Text>
+            <Text style={styles.lockText}>Abonne-toi pour envoyer des messages</Text>
           </Pressable>
         )}
       </KeyboardAvoidingView>

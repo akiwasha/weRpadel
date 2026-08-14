@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 6 testing PASSED end-to-end for both backend and frontend. Backend: 8/8 pytest tests pass in /app/backend/tests/test_iteration6.py — announcement serializer exposes players[], max_players=4, slots_left, is_full, is_member, is_author correctly; author is auto-joined on create; POST /announcements/{id}/join is idempotent, decrements slots_left and flips is_member=true; a 5th join returns 409 'Match complet (4 joueurs)'; POST /announcements/{id}/leave from the author returns 400; leave/join on a non-existent id returns 404; regression on /clubs, /messages/unread_count, /auth/me still 200. Frontend (mobile viewport 375×667): (A) SUBSCRIBED marc@padel.fr — Club Annonces shows all 5 level-filter chips (level-filter-Tous/Débutant/Intermédiaire/Confirmé/Expert), the match panel renders players avatars + empty slots + 'X/4 · N place(s)' text, the green 'Match confirmé · 4/4' badge appears on the seeded 4/4 annonce (2 occurrences on the club), 'Rejoindre le match' → 'Quitter le match' → 'Rejoindre le match' round-trip works via ann-join-<id>/ann-leave-<id> and hits the correct backend endpoints, composer shows ann-post-btn (no ann-premium-lock, no blur overlay). (B) SUBSCRIBED manage-subscription — tapping premium-card on /profile routes to /manage-subscription (NOT /paywall); the screen renders 'Premium actif', 'PadelConnect Premium · 9,90 €/an', renewal-date='14 août 2026', 'Renouvellement automatique: Activé', 'Géré via: TEST_STORE', and manage-cancel-btn 'Gérer / Résilier l'abonnement'. (C) NON-SUBSCRIBED FreeUser<ts> — profile shows 'Passe Premium' and premium-card routes to /paywall; club Annonces overlays the BlurView with '6 matchs en attente de joueurs' + 'Passer Premium · 9,90 €/an' (blur-premium-btn) which routes to /paywall; composer shows ann-premium-lock 'Passe Premium pour poster une annonce' which also routes to /paywall; ann-post-btn is hidden; level-filter chips remain visible above the blur. Regression from iter5 still holds (chat-premium-lock for non-sub, Test Store price $79.99 expected per iter5 note, clubs list + Liste/Carte toggle still fine).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/manage-subscription", "issues": ["'Géré via' shows raw 'TEST_STORE' string on the RC Test Store — the mapping only rewrites APP_STORE/PLAY_STORE/RC_BILLING. Not a user-facing bug in production, but the label is ugly in the test env; consider adding a case for 'TEST_STORE' → 'Test Store'."]}
+    ],
+    "react_native_issues": [
+      {"component": "StyleSheet shadow*", "issue": "Console warning carried over: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iter6_results.xml"
+  ],
+  "action_items": [
+    "(Optional) In /app/frontend/app/manage-subscription.tsx add a `.replace('TEST_STORE', 'Test Store')` to the store label chain so the RC Test Store looks polished in dev builds.",
+    "(Optional) Clean up the two long-standing deprecation warnings (shadow* → boxShadow, pointerEvents-as-prop) already noted in iter5."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py serialize_announcement (line 353-375) is correct: default player_ids fallback to [author_id] handles legacy (pre-iter6 seeded) documents gracefully.",
+    "backend/server.py join endpoint (line 408-421) is idempotent and returns 409 only when count >= 4 AND user isn't already in — good ordering.",
+    "backend/server.py leave endpoint (line 423-433) correctly forbids the author (400) BEFORE mutating.",
+    "club/[id].tsx toggleJoin (line 72-80) routes non-subscribers to /paywall before hitting the API — good defensive gating.",
+    "club/[id].tsx blur overlay (line 297-310) is only rendered when filtered.length > 0 which means the '6 matchs en attente' count adapts to the level filter; that's a nice UX detail.",
+    "manage-subscription.tsx correctly reads customerInfo.entitlements.active['pro'].expirationDate / willRenew / store, and falls back to the App Store / Google Play sub-management URL when managementURL is missing.",
+    "profile.tsx premium-card branch `router.push(isSubscribed ? '/manage-subscription' : '/paywall')` — verified BOTH branches."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py (new)",
+    "/app/test_reports/pytest/iter6_results.xml (new)",
+    "/app/test_reports/iteration_6.json (new)"
+  ],
+  "success_rate": { "backend": "100% (8/8 pytest)", "frontend": "100% (7/7 iter6 scenarios: subscribed match join/leave, level filter, 'Match confirmé' badge, subscribed manage-subscription, non-sub blur overlay, non-sub composer lock, non-sub premium-card→paywall)" },
+  "seed_data_creation": "Created via tests / UI: 3 TEST_ announcements on Padel Horizon Paris by MarcPadel ('TEST_ iter6 recherche partenaires', 'TEST_ iter6 join/leave', 'TEST_ iter6 full match' + 'TEST_ iter6 author leave'); one of them (test_match_full_returns_409) is now full with MarcPadel + JulieSmash + 2 fresh test users, so the 'Match confirmé · 4/4' badge is guaranteed to appear on the Annonces tab in future runs. Also created one fresh non-subscriber account FreeUser<ts> via UI signup for gating tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "marc@padel.fr remains Premium (RC entitlement bound to browser localStorage). For the non-subscribed view, ALWAYS clearLocalStorage+cookies AND sign up a fresh account. The seed at server startup only creates announcements with NO players[] key (backward-compat: serializer falls back to [author_id]); the two 'pre-seeded 3/4 and 4/4' announcements mentioned in the request are actually created live during backend tests, not at server startup — but they persist across runs so the 'Match confirmé · 4/4' badge is visible. Signup testIDs: signup-{pseudo|email|password}-input, signup-submit-button. Signin: signin-{email|password}-input, signin-submit-button. There is NO testID on the tab bar buttons — navigate via URL (/, /messages, /profile) or the router. RevenueCat Test Store store label = 'TEST_STORE' shown as raw string on manage-subscription (minor cosmetic).",
+  "rca_of_issue": "N/A — no bugs to root-cause this iteration. All 4 new features (blurred preview, manage-subscription, level filter, 4-player match confirmation) behave exactly as specified."
+}
