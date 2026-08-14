@@ -99,10 +99,11 @@ export default function Paywall() {
         ) : (
           <>
             <View style={styles.priceCard}>
-              <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>MEILLEURE OFFRE</Text></View>
+              <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>2 MOIS OFFERTS 🎁</Text></View>
               <Text style={styles.priceLabel}>Abonnement annuel</Text>
               <Text style={styles.priceValue}>{price}<Text style={styles.pricePeriod}> / an</Text></Text>
-              <Text style={styles.priceHint}>Renouvellement automatique chaque année · Résiliable à tout moment</Text>
+              <Text style={styles.trialLine}>Les 2 premiers mois offerts — soit 14 mois pour ton 1er abonnement</Text>
+              <Text style={styles.priceHint}>Puis renouvellement automatique chaque année · Résiliable à tout moment</Text>
             </View>
 
             {errorMsg && <Text testID="paywall-error" style={styles.error}>{errorMsg}</Text>}
@@ -116,7 +117,7 @@ export default function Paywall() {
               {isPurchasing ? (
                 <ActivityIndicator color={colors.onBrandPrimary} />
               ) : (
-                <Text style={styles.subscribeText}>S’abonner pour {price}/an</Text>
+                <Text style={styles.subscribeText}>Commencer — 2 mois offerts</Text>
               )}
             </Pressable>
 
@@ -177,6 +178,7 @@ const styles = StyleSheet.create({
   priceValue: { fontSize: 40, fontWeight: "800", color: colors.onSurface, marginTop: spacing.xs },
   pricePeriod: { fontSize: type.lg, fontWeight: "700", color: colors.onSurfaceSecondary },
   priceHint: { fontSize: type.sm, color: colors.onSurfaceSecondary, textAlign: "center", marginTop: spacing.xs },
+  trialLine: { fontSize: type.base, color: colors.brand, fontWeight: "800", textAlign: "center", marginTop: spacing.xs },
   subscribeBtn: { marginHorizontal: spacing.lg, marginTop: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 16, alignItems: "center", minHeight: 54, justifyContent: "center" },
   subscribeText: { color: colors.onBrandPrimary, fontSize: type.lg, fontWeight: "800" },
   identityHint: { textAlign: "center", color: colors.onSurfaceTertiary, fontSize: type.sm, marginTop: spacing.sm },
