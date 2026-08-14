@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -41,11 +41,17 @@ export default function EditProfile() {
   const [phone, setPhone] = useState(user?.phone || "");
   const [birth, setBirth] = useState(isoToDisplay(user?.birth_date));
   const [city, setCity] = useState(user?.city || "");
+  const [preferredRegion, setPreferredRegion] = useState<string>(user?.preferred_region || "");
+  const [regions, setRegions] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url || null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [pendingUri, setPendingUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.regions().then(setRegions).catch(() => {});
+  }, []);
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -93,6 +99,7 @@ export default function EditProfile() {
         phone: phone.trim(),
         birth_date: birthIso,
         city: city.trim(),
+        preferred_region: preferredRegion,
       });
       updateUser(updated);
       router.back();
@@ -186,6 +193,19 @@ export default function EditProfile() {
             ))}
           </View>
 
+          <Text style={styles.label}>Région préférée <Text style={styles.hintTag}>alertes de match</Text></Text>
+          <Text style={styles.subHint}>Reçois une notification quand un match de ton niveau ouvre dans cette région.</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+            <Pressable testID="pref-region-none" onPress={() => setPreferredRegion("")} style={[styles.chip, preferredRegion === "" && styles.chipActive]}>
+              <Text style={[styles.chipText, preferredRegion === "" && styles.chipTextActive]}>Aucune</Text>
+            </Pressable>
+            {regions.map((r) => (
+              <Pressable key={r} testID={`pref-region-${r}`} onPress={() => setPreferredRegion(r)} style={[styles.chip, preferredRegion === r && styles.chipActive]}>
+                <Text style={[styles.chipText, preferredRegion === r && styles.chipTextActive]}>{r}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <Text style={styles.label}>Bio (optionnel)</Text>
           <TextInput
             testID="edit-bio"
@@ -229,6 +249,8 @@ const styles = StyleSheet.create({
   hint: { fontSize: type.sm, color: colors.onSurfaceTertiary },
   label: { fontSize: type.base, fontWeight: "700", color: colors.onSurface, marginTop: spacing.sm },
   publicTag: { fontSize: 11, color: colors.brandPrimary, fontWeight: "800" },
+  hintTag: { fontSize: 11, color: colors.info, fontWeight: "800" },
+  subHint: { fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2, marginBottom: spacing.xs },
   privateHead: {
     flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.lg,
     paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border,

@@ -44,12 +44,13 @@ export const api = {
   adminSetClubOutdoor: (id: string, is_outdoor: boolean) =>
     request(`/clubs/${id}`, { method: "PATCH", body: JSON.stringify({ is_outdoor }) }),
   clubWeather: (id: string) => request(`/clubs/${id}/weather`),
-  openMatches: (filters?: { level?: string; date?: string; region?: string; search?: string }) => {
+  openMatches: (filters?: { level?: string; date?: string; region?: string; search?: string; sort?: string }) => {
     const q = new URLSearchParams();
     if (filters?.level && filters.level !== "Tous") q.set("level", filters.level);
     if (filters?.date) q.set("date", filters.date);
     if (filters?.region) q.set("region", filters.region);
     if (filters?.search) q.set("search", filters.search);
+    if (filters?.sort) q.set("sort", filters.sort);
     const qs = q.toString();
     return request(`/matches/open${qs ? "?" + qs : ""}`);
   },

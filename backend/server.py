@@ -133,6 +133,7 @@ class ProfileUpdate(BaseModel):
     phone: Optional[str] = None
     birth_date: Optional[str] = None
     city: Optional[str] = None
+    preferred_region: Optional[str] = None
 
 class ClubOut(BaseModel):
     id: str
@@ -287,6 +288,7 @@ def user_me(u: dict) -> dict:
         "phone": u.get("phone"),
         "birth_date": u.get("birth_date"),
         "city": u.get("city"),
+        "preferred_region": u.get("preferred_region"),
         "is_admin": is_admin_user(u),
     }
 
@@ -561,6 +563,8 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
         val = getattr(body, f)
         if val is not None:
             updates[f] = val.strip()
+    if body.preferred_region is not None:
+        updates["preferred_region"] = body.preferred_region.strip() or None
     if updates:
         await db.users.update_one({"id": user["id"]}, {"$set": updates})
     updated = await db.users.find_one({"id": user["id"]})
@@ -832,6 +836,7 @@ async def open_matches(
     date: Optional[str] = None,
     region: Optional[str] = None,
     search: Optional[str] = None,
+    sort: Optional[str] = None,
     user=Depends(current_user),
 ):
     """Open matches (not full) across all clubs — upcoming or undated — with optional filters."""
@@ -882,9 +887,29 @@ async def open_matches(
             continue
         s["club_city"] = club.get("city")
         s["club_region"] = club.get("region")
+        s["club_is_outdoor"] = bool(club.get("is_outdoor"))
+        s["_lat"] = club.get("latitude")
+        s["_lon"] = club.get("longitude")
         out.append(s)
-    # Sort: dated (soonest first) then undated
-    out.sort(key=lambda x: (x.get("match_date") is None, x.get("match_date") or ""))
+
+    # Sort by distance from the viewer's city when requested, else by date
+    if sort == "distance" and user.get("city"):
+        coords = await geocode_city(user["city"])
+        if coords and coords.get("lat") is not None:
+            for s in out:
+                if s["_lat"] is not None and s["_lon"] is not None:
+                    s["distance_km"] = round(haversine_km(coords["lat"], coords["lon"], s["_lat"], s["_lon"]))
+                else:
+                    s["distance_km"] = None
+            out.sort(key=lambda x: (x.get("distance_km") is None, x.get("distance_km") or 0))
+        else:
+            out.sort(key=lambda x: (x.get("match_date") is None, x.get("match_date") or ""))
+    else:
+        out.sort(key=lambda x: (x.get("match_date") is None, x.get("match_date") or ""))
+
+    for s in out:
+        s.pop("_lat", None)
+        s.pop("_lon", None)
     return out
 
 @api_router.post("/clubs/{club_id}/announcements")
@@ -912,6 +937,28 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(ann)
+    # Alert players whose preferred region == club region and whose level == organizer level
+    try:
+        author_level = user.get("level")
+        recipients = []
+        async for u in db.users.find({
+            "preferred_region": club["region"],
+            "level": author_level,
+            "id": {"$ne": user["id"]},
+        }):
+            recipients.append(u["id"])
+        if recipients:
+            await send_push(
+                recipients=recipients,
+                data={
+                    "title": "Nouveau match près de chez toi ! 🎾",
+                    "message": f"Un match niveau {author_level} vient d'ouvrir à {club['name']} ({club['region']}).",
+                    "action_url": f"/club/{club_id}",
+                },
+                idempotency_key=f"newmatch-{ann_id}",
+            )
+    except Exception as e:
+        logger.warning(f"New-match alert push failed (non-blocking): {e}")
     return await serialize_announcement(ann, user, club)
 
 @api_router.post("/announcements/{ann_id}/replay")

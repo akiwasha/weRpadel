@@ -1,0 +1,36 @@
+{
+  "summary": "Itération 16 (weRpadel — preferred_region + club_is_outdoor sur /matches/open + tri par distance + push alerte non-bloquante + cœur favoris orange) — Backend 7/7 pytest passent. Frontend Playwright (390x844) 100% OK. Backend : PUT /auth/me accepte preferred_region='Occitanie' et le renvoie, preferred_region:'' remet à null (readback via /auth/me confirmé). GET /matches/open expose bien club_is_outdoor (bool) sur chaque item (13 items testés). GET /matches/open?sort=distance depuis julie(city=Lyon) renvoie distance_km sur chaque item avec tri croissant vérifié (distances == sorted(distances)); depuis marc sans ville (city=''), fallback tri par date sans erreur (200 OK). POST /clubs/{id}/announcements renvoie 200 même quand un recipient B (julie) a preferred_region==club.region ET level==organizer.level (push tenté, echec silencieux avec placeholder key, non-bloquant); l'annonce est bien créée et listée. Cas sans recipient correspondant renvoie aussi 200. Frontend E2E (marc) : /edit-profile affiche section 'Région préférée' avec chip 'Aucune' (pref-region-none) + chips régions (pref-region-Occitanie, pref-region-Île-de-France, etc.). Sélection 'Occitanie' + Enregistrer → réouverture de edit-profile → le chip Occitanie a background rgb(255,107,21) (brand orange = actif), 'Aucune' inactif rgb(244,245,247) : persistance OK. Onglet Rechercher : sort-distance-toggle passe de bg rgb(244,245,247) → rgb(255,107,21) (orange) quand activé. Cartes affichent badges '~7 km' (Casa Padel, 4PADEL Aubervilliers, etc.) et sont triées ; hint 'Ajoute ta ville dans ton profil' non affiché car marc a city=Paris (comportement conforme). Régression Rechercher : chips filter-level-Confirmé, filter-region-Île-de-France OK ; boutons 'Rejoindre le match' visibles. Régression Clubs 'Rennes' : nearest-banner affiche 'Aucun club à « Rennes ». Voici les 6 clubs les plus proches :' ✅. Cœur favoris : favorites-btn sur /profile = rgb(255,107,21) (orange) ; cœur sur /favorites (JulieSmash) = orange visible ; favorite-btn sur /player/[id] inactif = rgb(78,83,88) (onSurfaceSecondary, outline neutre correct), actif après clic = rgb(255,107,21) (orange). Aucun rouge/bleu détecté. Météo Open-Meteo non testée visuellement (rate-limit IP pod attendu, badge caché gracieusement — conforme note du review request).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/test_reports/pytest/iter16_results.xml"
+  ],
+  "action_items": [
+    "Aucun blocage. Optionnel : le endpoint DELETE /api/announcements/{id} n'existe pas (renvoie 404), rendant impossible le nettoyage automatique côté API des annonces TEST_. Nettoyage manuel effectué via motor (2 annonces TEST_ supprimées). À envisager côté produit : ajouter un DELETE d'annonce (auteur ou admin).",
+    "Optionnel : la carte 'Météo à venir' n'a pas été rendue durant le test (Open-Meteo probablement rate-limité sur l'IP du pod → days:[] → carte cachée). Comportement gracieux voulu."
+  ],
+  "critical_code_review_comments": [
+    "server.py > create_announcement : la sélection des recipients (db.users.find({preferred_region, level})) est OK pour <1k users, mais absence d'index composé sur (preferred_region, level) → à surveiller avec la croissance. Un index partiel serait un plus.",
+    "server.py > open_matches : la boucle sort=distance appelle geocode_city(user.city) mais recalcule distances avec des lat/lon possiblement None (clubs seedés sans coord). Les items avec distance_km=None sont mis en fin de liste (bien), mais un log warning côté seed pour compléter les coords manquantes serait souhaitable.",
+    "server.py > create_announcement (push alert) : le try/except est global et log en warning seulement. En prod, envisager de logger le corps de la failure (endpoint push HTTP status) pour distinguer 'placeholder key' vs 'network' vs 'expo receipt fail'.",
+    "search.tsx : le hint 'Ajoute ta ville dans ton profil' n'est visible que si sortByDistance=true ET !user.city. Bon UX mais absence de deep-link vers /edit-profile pour aider l'utilisateur — ajouter un Pressable serait plus fluide.",
+    "edit-profile.tsx > chips preferred_region : liste toutes les régions FR statiquement. Si le seed backend ajoute une nouvelle région, il faudra la synchroniser côté client. Envisager /api/regions comme source unique."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/test_reports/iteration_16.json",
+    "/app/test_reports/pytest/iter16_results.xml"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100%"},
+  "seed_data_creation": "2 annonces TEST_iter16_* créées puis SUPPRIMÉES via motor (DELETE endpoint absent, nettoyage direct DB). État final : julie preferred_region=null (reset), marc preferred_region=null (reset), marc city=Paris, julie city=Lyon (défini pendant les tests distance — utile pour re-tests futurs, sinon à re-clear). Aucune donnée résiduelle bloquante.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "testIDs vérifiés iter16 côté frontend: pref-region-none, pref-region-<Region> (dans /edit-profile) ; sort-distance-toggle (dans onglet Rechercher, bg brandPrimary rgb(255,107,21) quand actif, gray rgb(244,245,247) quand inactif) ; favorites-btn (profile), fav-<id> (favorites list), favorite-btn (player detail) — tous en brand orange rgb(255,107,21) à l'état 'favori/actif'. Endpoints iter16 confirmés: PUT /api/auth/me {preferred_region: str} (chaîne vide => null) ; GET /api/matches/open items ont club_is_outdoor:bool et, quand ?sort=distance, distance_km:int|null (tri asc, None en fin) ; POST /api/clubs/{id}/announcements non-bloquant sur échec push (200 toujours). Rappel : marc a city=Paris et level=Confirmé (peut varier après tests), julie a city=Lyon et level=Confirmé (défini durant tests iter16). Reset possible via /edit-profile.",
+  "rca_of_issue": "N/A — vérification fonctionnelle. Tous les critères d'acceptation du review_request sont satisfaits."
+}

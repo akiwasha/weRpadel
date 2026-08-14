@@ -17,6 +17,8 @@ type Match = {
   club_name: string | null;
   club_city?: string | null;
   club_region?: string | null;
+  club_is_outdoor?: boolean;
+  distance_km?: number | null;
   content: string;
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; verified?: boolean };
   match_date: string | null;
@@ -60,6 +62,8 @@ export default function SearchMatches() {
   const [region, setRegion] = useState("");
   const [date, setDate] = useState("");
   const [search, setSearch] = useState("");
+  const [sortByDistance, setSortByDistance] = useState(false);
+  const [weatherByClub, setWeatherByClub] = useState<Record<string, { outdoor: boolean; days: any[] }>>({});
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const chips = useMemo(dateChips, []);
@@ -67,18 +71,39 @@ export default function SearchMatches() {
   const load = useCallback(async () => {
     try {
       const [m, r] = await Promise.all([
-        api.openMatches({ level, region, date, search: search.trim() || undefined }),
+        api.openMatches({ level, region, date, search: search.trim() || undefined, sort: sortByDistance ? "distance" : undefined }),
         regions.length ? Promise.resolve(regions) : api.regions(),
       ]);
       setMatches(m);
       if (!regions.length) setRegions(r);
+      // Fetch weather for outdoor clubs of dated matches
+      const clubIds = Array.from(new Set(
+        m.filter((x: Match) => x.club_is_outdoor && x.match_date).map((x: Match) => x.club_id)
+      ));
+      setWeatherByClub((prev) => {
+        clubIds.forEach((cid) => {
+          if (prev[cid as string]) return;
+          api.clubWeather(cid as string)
+            .then((w) => setWeatherByClub((p) => ({ ...p, [cid as string]: w })))
+            .catch(() => {});
+        });
+        return prev;
+      });
     } catch (e) { console.log(e); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [level, region, date, search, regions]);
+  }, [level, region, date, search, sortByDistance, regions]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const isMine = (uid: string) => user?.id === uid;
+
+  const matchWeather = (item: Match) => {
+    const w = weatherByClub[item.club_id];
+    if (!w || !w.outdoor || !item.match_date) return null;
+    const d = new Date(item.match_date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return (w.days || []).find((x: any) => x.date === key) || null;
+  };
 
   const join = async (m: Match) => {
     if (!isSubscribed) { router.push("/paywall"); return; }
@@ -141,6 +166,17 @@ export default function SearchMatches() {
             </Pressable>
           ))}
         </ScrollView>
+        <View style={styles.sortRow}>
+          <Pressable testID="sort-distance-toggle" onPress={() => setSortByDistance((v) => !v)} style={[styles.sortChip, sortByDistance && styles.sortChipActive]}>
+            <Ionicons name="navigate" size={14} color={sortByDistance ? colors.onBrandPrimary : colors.onSurfaceSecondary} />
+            <Text style={[styles.sortText, sortByDistance && styles.sortTextActive]}>
+              {sortByDistance ? "Trié par distance" : "Trier par distance"}
+            </Text>
+          </Pressable>
+          {sortByDistance && !user?.city && (
+            <Text style={styles.sortHint}>Ajoute ta ville dans ton profil</Text>
+          )}
+        </View>
       </View>
 
       {loading ? (
@@ -163,7 +199,15 @@ export default function SearchMatches() {
                 <View style={styles.clubBadge}><Ionicons name="location" size={14} color={colors.onBrandPrimary} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.clubName} numberOfLines={1}>{item.club_name || "Club"}</Text>
-                  <Text style={styles.clubCity} numberOfLines={1}>{item.club_city}{item.club_region ? ` · ${item.club_region}` : ""}</Text>
+                  <View style={styles.cityRow}>
+                    <Text style={styles.clubCity} numberOfLines={1}>{item.club_city}{item.club_region ? ` · ${item.club_region}` : ""}</Text>
+                    {item.distance_km != null && (
+                      <View style={styles.distancePill}>
+                        <Ionicons name="navigate" size={10} color={colors.onInfoMuted} />
+                        <Text style={styles.distanceText}>~{item.distance_km} km</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <View style={styles.slotsPill}>
                   <Text style={styles.slotsPillText}>{item.total_players}/4</Text>
@@ -202,6 +246,17 @@ export default function SearchMatches() {
                     <Text style={styles.priceText}>{(item.court_price / 4).toFixed(2)} €/joueur</Text>
                   </View>
                 )}
+                {(() => {
+                  const wd = matchWeather(item);
+                  return wd ? (
+                    <View style={styles.weatherPill} testID={`search-weather-${item.id}`}>
+                      <Ionicons name={wd.icon} size={13} color={colors.info} />
+                      <Text style={styles.weatherText}>
+                        {wd.temp_max != null ? `${wd.temp_max}°` : wd.label}{wd.precipitation != null ? ` · 💧${wd.precipitation}%` : ""}
+                      </Text>
+                    </View>
+                  ) : null;
+                })()}
               </View>
 
               {item.is_author ? (
@@ -251,6 +306,21 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
   chipText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.sm },
   chipTextActive: { color: colors.onSurfaceInverse },
+  sortRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.xs },
+  sortChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
+  },
+  sortChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  sortText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.sm },
+  sortTextActive: { color: colors.onBrandPrimary },
+  sortHint: { color: colors.onSurfaceTertiary, fontSize: 11, fontWeight: "600", flexShrink: 1 },
+  cityRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 1 },
+  distancePill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.infoMuted, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  distanceText: { color: colors.onInfoMuted, fontWeight: "800", fontSize: 11 },
+  weatherPill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.infoMuted, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill },
+  weatherText: { color: colors.onInfoMuted, fontWeight: "700", fontSize: type.sm },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.sm },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, fontWeight: "700" },
   emptySub: { fontSize: type.base, color: colors.onSurfaceSecondary, textAlign: "center" },
