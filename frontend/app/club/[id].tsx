@@ -107,7 +107,7 @@ export default function ClubDetail() {
   const filtered = levelFilter === "Tous" ? items : items.filter((i) => i.author.level === levelFilter);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+    <View style={{ flex: 1, backgroundColor: colors.appBg }}>
       <SafeAreaView edges={["top"]} style={styles.hero}>
         <Image
           source={{ uri: club.image_url || "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?w=800" }}

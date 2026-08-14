@@ -159,7 +159,7 @@ export default function Paywall() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.surface },
+  safe: { flex: 1, backgroundColor: colors.appBg },
   closeBtn: { position: "absolute", top: 50, right: spacing.lg, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   container: { paddingBottom: spacing.xxxl },
   hero: { alignItems: "center", paddingTop: spacing.xxxl, paddingBottom: spacing.xl, paddingHorizontal: spacing.lg, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },

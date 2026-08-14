@@ -84,7 +84,7 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFF7D6" },
+  safe: { flex: 1, backgroundColor: colors.appBg },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   logoWrap: { alignItems: "center", marginBottom: spacing.xxxl },
   logo: { width: 96, height: 96, borderRadius: 22 },

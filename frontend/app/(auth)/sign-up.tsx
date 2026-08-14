@@ -204,7 +204,7 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFF7D6" },
+  safe: { flex: 1, backgroundColor: colors.appBg },
   container: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   header: { alignItems: "center", marginBottom: spacing.lg },
   logo: { width: 80, height: 80, borderRadius: 20 },

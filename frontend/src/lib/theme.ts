@@ -19,6 +19,7 @@ export const colors = {
   info: "#5B95E8",
   infoMuted: "#DCE9FF",
   onInfoMuted: "#1E3A8A",
+  appBg: "#FFF7D6",
   warning: "#F59E0B",
   error: "#EF4444",
   border: "#E9EBEF",
