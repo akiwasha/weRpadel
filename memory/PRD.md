@@ -75,3 +75,12 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - Frontend : `app/_layout.tsx` (handler + channel Android au module scope, tap handlers warm/cold, nudge hebdo si permission refusée) ; `src/lib/push.ts` `registerForPush(userId)` appelé à chaque auth.
 - Config : `app.json` plugin `expo-notifications` + `android.googleServicesFile: ./google-services.json`.
 - ⚠️ Ne fonctionne PAS en Expo Go / preview web. Nécessite build iOS/Android réel. `EMERGENT_PUSH_KEY=placeholder` (remplacé par le déployeur au build). L'utilisateur doit fournir `google-services.json` (Firebase, package `com.emergent.padelplay.y9om9x`) + clé APNs `.p8` (iOS) et Google service account JSON (Android) au moment du build.
+
+## Rappels de match programmés (Itération 12)
+- Scheduler backend `reminder_loop` (asyncio, tick toutes les 5 min) lancé au startup. `reminder_tick()` parcourt les matchs à venir avec `match_date` :
+  - **24h avant** (fenêtre 2h < delta ≤ 24h) → push "Rappel de match 🎾" ; flag `reminded_24h`.
+  - **2h avant** (0 < delta ≤ 2h) → push "Ton match commence bientôt ⏰" ; flag `reminded_2h`.
+- Heure affichée en fuseau Europe/Paris (`zoneinfo`). Envoi non bloquant (try/except) + `$idempotency_key` (remind24-/remind2-) pour dédup côté relay. Flags posés même si l'envoi échoue (évite le spam de retries).
+
+## Reproposer la semaine prochaine (Itération 12)
+- Bouton sur chaque carte "Passés" 4/4 ayant un `match_date` : recrée en 1 tap le même match +7 jours (même heure/durée, même équipe) via l'endpoint `replay` existant (envoie une invitation par message à chaque co-joueur). Confirmation via `Alert`. testID `weekly-<id>`.

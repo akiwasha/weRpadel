@@ -11,10 +11,16 @@ import bcrypt
 import jwt
 import requests
 import httpx
+import asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
+try:
+    from zoneinfo import ZoneInfo
+    PARIS_TZ = ZoneInfo("Europe/Paris")
+except Exception:
+    PARIS_TZ = timezone.utc
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -298,6 +304,58 @@ async def register_push(body: RegisterPushBody):
         raise HTTPException(502, "Push provider unavailable")
     resp.raise_for_status()
     return {"status": "registered"}
+
+# ============ MATCH REMINDERS (scheduled push: 24h + 2h before start) ============
+async def _send_reminder(a: dict, field: str, title: str, message: str, idem: str):
+    players = a.get("players") or [a["author_id"]]
+    if players:
+        try:
+            await send_push(
+                recipients=players,
+                data={"title": title, "message": message, "action_url": f"/club/{a['club_id']}"},
+                idempotency_key=idem,
+            )
+        except Exception as e:
+            logger.warning(f"Reminder push failed (non-blocking): {e}")
+    # Mark as attempted so we don't retry every tick (idempotency_key dedupes on the relay)
+    await db.announcements.update_one({"id": a["id"]}, {"$set": {field: True}})
+
+async def reminder_tick():
+    now = datetime.now(timezone.utc)
+    async for a in db.announcements.find({"match_date": {"$ne": None}}):
+        if a.get("reminded_24h") and a.get("reminded_2h"):
+            continue
+        raw = a.get("match_date")
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        delta = dt - now
+        when = dt.astimezone(PARIS_TZ).strftime("%d/%m à %Hh%M")
+        club = await db.clubs.find_one({"id": a["club_id"]})
+        club_name = club["name"] if club else "ton club"
+        if timedelta(hours=2) < delta <= timedelta(hours=24) and not a.get("reminded_24h"):
+            await _send_reminder(
+                a, "reminded_24h", "Rappel de match 🎾",
+                f"Ton match à {club_name} approche : {when}.", f"remind24-{a['id']}",
+            )
+        elif timedelta(0) < delta <= timedelta(hours=2) and not a.get("reminded_2h"):
+            await _send_reminder(
+                a, "reminded_2h", "Ton match commence bientôt ⏰",
+                f"Rendez-vous à {club_name} vers {when}. Prêt(e) ?", f"remind2-{a['id']}",
+            )
+
+async def reminder_loop():
+    while True:
+        try:
+            await reminder_tick()
+        except Exception as e:
+            logger.warning(f"reminder_loop error: {e}")
+        await asyncio.sleep(300)
 
 # ============ AUTH ROUTES ============
 @api_router.post("/auth/register")
@@ -898,6 +956,9 @@ async def on_startup():
         await run_in_threadpool(init_storage)
     except Exception:
         pass
+
+    # start the match reminder scheduler (24h + 2h before start)
+    asyncio.create_task(reminder_loop())
 
 @api_router.get("/")
 async def root():

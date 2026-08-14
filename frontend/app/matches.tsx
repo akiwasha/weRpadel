@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -65,6 +65,7 @@ export default function MatchHistory() {
   const [rateFor, setRateFor] = useState<Match | null>(null);
   const [ratingsMap, setRatingsMap] = useState<Record<string, number>>({});
   const [savingRating, setSavingRating] = useState(false);
+  const [weeklyId, setWeeklyId] = useState<string | null>(null);
   const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -103,6 +104,38 @@ export default function MatchHistory() {
   const openRate = (m: Match) => {
     setRatingsMap({});
     setRateFor(m);
+  };
+
+  const proposeWeekly = (m: Match) => {
+    if (!m.match_date) return;
+    const start = new Date(m.match_date);
+    start.setDate(start.getDate() + 7);
+    let endIso: string | null = null;
+    if (m.match_end_date) {
+      const e = new Date(m.match_end_date);
+      e.setDate(e.getDate() + 7);
+      endIso = e.toISOString();
+    }
+    const label = formatMatchRange(start.toISOString(), endIso) || "";
+    Alert.alert(
+      "Reproposer la semaine prochaine",
+      `Créer un nouveau match avec la même équipe le ${label} ? Chaque joueur recevra une invitation.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Reproposer",
+          onPress: async () => {
+            setWeeklyId(m.id);
+            try {
+              await api.replayMatch(m.id, start.toISOString(), endIso);
+              setGroup("upcoming");
+              await load();
+            } catch (e) { console.log(e); }
+            finally { setWeeklyId(null); }
+          },
+        },
+      ]
+    );
   };
 
   const rateCoPlayers = rateFor ? rateFor.players.filter((p) => p.id !== user?.id) : [];
@@ -243,6 +276,18 @@ export default function MatchHistory() {
                 >
                   <Ionicons name="repeat" size={18} color={colors.onBrandPrimary} />
                   <Text style={styles.replayText}>Rejouer avec cette équipe</Text>
+                </Pressable>
+              )}
+              {item.is_full && item.match_date && (
+                <Pressable
+                  testID={`weekly-${item.id}`}
+                  onPress={() => proposeWeekly(item)}
+                  disabled={weeklyId === item.id}
+                  style={styles.weeklyBtn}
+                >
+                  {weeklyId === item.id ? <ActivityIndicator color={colors.brandPrimary} /> : (
+                    <><Ionicons name="calendar" size={17} color={colors.brandPrimary} /><Text style={styles.weeklyText}>Reproposer la semaine prochaine</Text></>
+                  )}
                 </Pressable>
               )}
               <Text style={styles.hint}>Touche un joueur pour le recontacter</Text>
@@ -402,6 +447,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 11, marginTop: spacing.xs,
   },
   replayText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  weeklyBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    borderRadius: radius.pill, paddingVertical: 10, borderWidth: 1.5, borderColor: colors.brandPrimary,
+  },
+  weeklyText: { color: colors.brandPrimary, fontWeight: "800", fontSize: type.base },
   rateBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
     backgroundColor: colors.warning, borderRadius: radius.pill, paddingVertical: 11, marginTop: spacing.xs,
