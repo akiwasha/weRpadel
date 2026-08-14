@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSecondary, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
   },
   datePillPast: { backgroundColor: colors.surfaceTertiary },
-  datePillOngoing: { backgroundColor: "#DCFCE7" },
+  datePillOngoing: { backgroundColor: "#DCE9FF" },
   datePillText: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
   statusTag: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
   statusTagText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: 11 },

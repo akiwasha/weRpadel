@@ -162,7 +162,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.surface },
+  safe: { flex: 1, backgroundColor: "#FFF7D6" },
   container: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 26, fontWeight: "800", color: colors.onSurface },

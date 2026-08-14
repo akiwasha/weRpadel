@@ -14,7 +14,7 @@ export const colors = {
   onBrandSecondary: "#FF6B15",
   brandTertiary: "#FFF5F0",
   onBrandTertiary: "#E24F04",
-  success: "#22C55E",
+  success: "#5B95E8",
   onSuccess: "#FFFFFF",
   warning: "#F59E0B",
   error: "#EF4444",
