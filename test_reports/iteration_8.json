@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 8 (match history + named offline players) validated end-to-end. Backend pytest: 10/10 pass. POST /clubs/{id}/announcements accepts offline_names (trim, empty ignored, capped at 3, names -> offline_players, total_players, slots_left, is_full, club_name). Rétrocompat party_size sans offline_names -> offline_players = liste de strings vides. Join respecte len(players)+len(offline_names) <= 4 (409 quand plein). GET /matches/history renvoie les matchs où l'utilisateur est author OR players contains id, triés desc, avec club_name/players[]/offline_players[]/total_players/is_full; 401 sans token. Frontend: composer offline-name-input + offline-add-btn -> chips offline-name-0/1; post crée bien une carte '3/4 · 1 place libre' avec avatar 'MarcPadel' + pastilles grises 'TESTPaul' + 'TESTSarah' + slot 'Libre'. Historique via my-matches-card ouvre /matches, chaque item a testID history-match-<id>, label 'Joueurs présents', chips 'Toi' (non navigable) + JulieSmash (tappable via history-player-<matchId>-<uid>) + pastilles grises nommées 'Paul'/'Sarah'. Clic sur JulieSmash -> profil joueur avec msg-player-btn 'Envoyer un message' -> ouvre /chat/<userId>. Badge '4/4' vert affiché sur match confirmé, '<n>/4' gris sinon. Aucun red screen. Warnings RN Web 'shadow*' déjà connus (non bloquants).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet (web preview)", "issue": "React Native Web deprecation warnings persist: 'shadow*' style props deprecated (use boxShadow). Cosmetic on web preview, non-blocking on native. Reference: multiple StyleSheet.create blocks."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8.py",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate remaining shadow* style props to boxShadow to silence RN Web warnings (non-blocking)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:426-430 correctly trims offline_names, ignores empty strings, caps at 3 before persisting.",
+    "server.py:407-418 /matches/history uses $or on players/author_id and sorts by created_at desc; reuses serialize_announcement so shape is consistent with list endpoint.",
+    "server.py:451-456 join computes cap using len(players)+len(offline_names)|offline_count, honouring both new named list and legacy offline_count docs.",
+    "matches.tsx:104-127 renders registered players as tappable chips (history-player-<matchId>-<uid>) — self chip labeled 'Toi' with onPress no-op, others navigate to /player/<id>; offline players rendered as grey non-tappable chips with the first-name.",
+    "club/[id].tsx composer exposes offline-name-input + offline-add-btn + offline-name-<i> chips (max 3) and resets state after post — matches spec.",
+    "api.ts:53 sends offline_names in POST body; api.ts:54 exposes matchHistory() -> /matches/history."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration8.py (new)",
+    "/app/test_reports/pytest/iter8_results.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% of tested flows (composer, history list, co-player chip -> profile -> msg, offline chips rendering, full-match 4/4 badge)"},
+  "seed_data_creation": "Test announcements prefixed with TEST_iter8 and 'UI iter8 durable co-player match' created via marc@padel.fr. Julie joined the durable match to enable co-player navigation testing. Not cleaned up (small volume, does not interfere with other flows).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 8 fully green. Backend endpoints: POST /clubs/{id}/announcements (accepts offline_names[]), GET /matches/history (auth required), join/leave. Frontend testIDs: profile.my-matches-card -> /matches with history-back, history-match-<id>, history-player-<matchId>-<uid>; club composer: offline-name-input, offline-add-btn, offline-name-<i>, ann-content-input, ann-post-btn; match panel: match-player-<annId>-<uid> (registered chips), offline chips = grey named. Credentials: marc@padel.fr / password123 (Premium, has history incl. one 4/4 match with JulieSmash + Paul + Sarah). Julie is in one durable match with marc for co-player nav retest.",
+  "rca_of_issue": "N/A — no bugs found this iteration."
+}

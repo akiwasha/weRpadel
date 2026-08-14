@@ -21,6 +21,7 @@ type Announcement = {
   created_at: string;
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
   players: Player[];
+  offline_players: string[];
   offline_count: number;
   total_players: number;
   max_players: number;
@@ -42,7 +43,8 @@ export default function ClubDetail() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [text, setText] = useState("");
   const [availability, setAvailability] = useState("");
-  const [partySize, setPartySize] = useState(1);
+  const [offlineNames, setOfflineNames] = useState<string[]>([]);
+  const [offlineInput, setOfflineInput] = useState("");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
@@ -64,13 +66,21 @@ export default function ClubDetail() {
     if (!text.trim() || !id) return;
     setPosting(true);
     try {
-      const a = await api.postAnnouncement(id, text.trim(), availability.trim() || undefined, partySize);
+      const a = await api.postAnnouncement(id, text.trim(), availability.trim() || undefined, offlineNames);
       setItems([a, ...items]);
       setText("");
       setAvailability("");
-      setPartySize(1);
+      setOfflineNames([]);
+      setOfflineInput("");
     } catch (e: any) { console.log(e); }
     finally { setPosting(false); }
+  };
+
+  const addOffline = () => {
+    const n = offlineInput.trim();
+    if (!n || offlineNames.length >= 3) return;
+    setOfflineNames([...offlineNames, n]);
+    setOfflineInput("");
   };
 
   const toggleJoin = async (ann: Announcement) => {
@@ -228,28 +238,36 @@ export default function ClubDetail() {
                     </View>
                   )}
 
-                  {/* Match panel — 4 joueurs */}
+                  {/* Match — joueurs présents (4 max) */}
                   <View style={styles.matchPanel}>
-                    <View style={styles.playersRow}>
-                      {item.players.map((p, idx) => (
-                        <View key={p.id} style={[styles.playerAvatar, idx > 0 && { marginLeft: -10 }]}>
+                    <View style={styles.playersWrap}>
+                      {item.players.map((p) => (
+                        <Pressable
+                          key={p.id}
+                          testID={`match-player-${item.id}-${p.id}`}
+                          onPress={() => !isMine(p.id) && router.push(`/player/${p.id}`)}
+                          style={styles.playerChip}
+                        >
                           {p.avatar_url ? (
-                            <Image source={{ uri: fullUrl(p.avatar_url)! }} style={styles.playerImg} contentFit="cover" />
+                            <Image source={{ uri: fullUrl(p.avatar_url)! }} style={styles.chipAvatar} contentFit="cover" />
                           ) : (
-                            <View style={[styles.playerImg, styles.playerFallback]}>
-                              <Text style={{ color: colors.brandPrimary, fontWeight: "800", fontSize: 12 }}>{p.pseudo[0]?.toUpperCase()}</Text>
+                            <View style={[styles.chipAvatar, styles.playerFallback]}>
+                              <Text style={{ color: colors.brandPrimary, fontWeight: "800", fontSize: 11 }}>{p.pseudo[0]?.toUpperCase()}</Text>
                             </View>
                           )}
-                        </View>
+                          <Text style={styles.playerChipText} numberOfLines={1}>{p.pseudo}</Text>
+                        </Pressable>
                       ))}
-                      {Array.from({ length: item.offline_count }).map((_, i) => (
-                        <View key={`offline-${i}`} style={[styles.playerAvatar, styles.offlineSlot, { marginLeft: -10 }]}>
-                          <Ionicons name="person" size={15} color={colors.onBrandSecondary} />
+                      {item.offline_players.map((name, i) => (
+                        <View key={`offline-${i}`} style={styles.offlineChip}>
+                          <Ionicons name="person" size={13} color={colors.onBrandSecondary} />
+                          <Text style={styles.offlineChipText} numberOfLines={1}>{name || "Invité"}</Text>
                         </View>
                       ))}
                       {Array.from({ length: item.slots_left }).map((_, i) => (
-                        <View key={`empty-${i}`} style={[styles.playerAvatar, styles.emptySlot, { marginLeft: -10 }]}>
-                          <Ionicons name="add" size={16} color={colors.onSurfaceTertiary} />
+                        <View key={`empty-${i}`} style={styles.emptyChip}>
+                          <Ionicons name="add" size={14} color={colors.onSurfaceTertiary} />
+                          <Text style={styles.emptyChipText}>Libre</Text>
                         </View>
                       ))}
                     </View>
@@ -261,7 +279,7 @@ export default function ClubDetail() {
                       </View>
                     ) : (
                       <Text style={styles.slotsText}>
-                        {item.total_players}/4 · {item.slots_left} place{item.slots_left > 1 ? "s" : ""}
+                        {item.total_players}/4 · {item.slots_left} place{item.slots_left > 1 ? "s" : ""} libre{item.slots_left > 1 ? "s" : ""}
                       </Text>
                     )}
                   </View>
@@ -322,18 +340,39 @@ export default function ClubDetail() {
           <View style={styles.composer}>
             {isSubscribed ? (
               <>
-                <View style={styles.partyRow}>
-                  <Text style={styles.partyLabel}>Déjà réunis :</Text>
-                  {[1, 2, 3].map((n) => (
-                    <Pressable
-                      key={n}
-                      testID={`party-size-${n}`}
-                      onPress={() => setPartySize(n)}
-                      style={[styles.partyChip, partySize === n && styles.partyChipActive]}
-                    >
-                      <Text style={[styles.partyChipText, partySize === n && styles.partyChipTextActive]}>{n}/4</Text>
-                    </Pressable>
-                  ))}
+                <View style={styles.offlineComposer}>
+                  <Text style={styles.partyLabel}>Joueurs déjà réunis (hors app) :</Text>
+                  <View style={styles.offlineChipsRow}>
+                    {offlineNames.map((n, i) => (
+                      <Pressable
+                        key={`${n}-${i}`}
+                        testID={`offline-name-${i}`}
+                        onPress={() => setOfflineNames(offlineNames.filter((_, idx) => idx !== i))}
+                        style={styles.offlineNameChip}
+                      >
+                        <Ionicons name="person" size={13} color={colors.onBrandSecondary} />
+                        <Text style={styles.offlineNameText}>{n}</Text>
+                        <Ionicons name="close-circle" size={15} color={colors.onBrandSecondary} />
+                      </Pressable>
+                    ))}
+                    {offlineNames.length < 3 && (
+                      <View style={styles.offlineInputWrap}>
+                        <TextInput
+                          testID="offline-name-input"
+                          value={offlineInput}
+                          onChangeText={setOfflineInput}
+                          onSubmitEditing={addOffline}
+                          placeholder="Prénom + Entrée"
+                          placeholderTextColor={colors.onSurfaceTertiary}
+                          style={styles.offlineInput}
+                          returnKeyType="done"
+                        />
+                        <Pressable testID="offline-add-btn" onPress={addOffline} style={styles.offlineAddBtn}>
+                          <Ionicons name="add" size={18} color={colors.onBrandPrimary} />
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <TextInput
                   testID="ann-availability-input"
@@ -427,26 +466,42 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
   filterChipText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.base },
   filterChipTextActive: { color: colors.onSurfaceInverse },
-  matchPanel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs },
-  playersRow: { flexDirection: "row", alignItems: "center" },
-  playerAvatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: colors.surfaceSecondary },
-  playerImg: { width: "100%", height: "100%", borderRadius: 17 },
-  playerFallback: { backgroundColor: colors.brandSecondary, alignItems: "center", justifyContent: "center" },
-  emptySlot: {
-    backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center",
-    borderStyle: "dashed", borderColor: colors.borderStrong,
-  },
-  offlineSlot: { backgroundColor: colors.brandSecondary, alignItems: "center", justifyContent: "center" },
-  partyRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
-  partyLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700" },
-  partyChip: {
-    height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill,
-    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
+  matchPanel: { marginTop: spacing.xs, gap: spacing.sm },
+  playersWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  playerChip: {
+    flexDirection: "row", alignItems: "center", gap: 6, maxWidth: 150,
+    backgroundColor: colors.surface, borderRadius: radius.pill, paddingLeft: 3, paddingRight: spacing.md, paddingVertical: 3,
     borderWidth: 1, borderColor: colors.border,
   },
-  partyChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  partyChipText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.sm },
-  partyChipTextActive: { color: colors.onBrandPrimary },
+  chipAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surfaceTertiary },
+  playerFallback: { alignItems: "center", justifyContent: "center", backgroundColor: colors.brandSecondary },
+  playerChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onSurface, flexShrink: 1 },
+  offlineChip: {
+    flexDirection: "row", alignItems: "center", gap: 5, maxWidth: 150,
+    backgroundColor: colors.brandSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 7,
+  },
+  offlineChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onBrandSecondary, flexShrink: 1 },
+  emptyChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: colors.surfaceTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 7,
+    borderWidth: 1, borderColor: colors.borderStrong, borderStyle: "dashed",
+  },
+  emptyChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onSurfaceTertiary },
+  offlineComposer: { marginBottom: spacing.sm, gap: spacing.xs },
+  offlineChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
+  offlineNameChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: colors.brandSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 7,
+  },
+  offlineNameText: { fontSize: type.sm, fontWeight: "700", color: colors.onBrandSecondary },
+  offlineInputWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
+  offlineInput: {
+    minWidth: 120, backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
+    paddingHorizontal: spacing.md, paddingVertical: 7, fontSize: type.sm, color: colors.onSurface,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  offlineAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  partyLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700" },
   confirmedBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,

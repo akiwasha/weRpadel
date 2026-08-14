@@ -72,6 +72,7 @@ function AuthGate() {
       <Stack.Screen name="edit-profile" options={{ presentation: "modal" }} />
       <Stack.Screen name="paywall" options={{ presentation: "modal" }} />
       <Stack.Screen name="manage-subscription" options={{ presentation: "modal" }} />
+      <Stack.Screen name="matches" />
     </Stack>
   );
 }

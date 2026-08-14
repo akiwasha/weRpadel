@@ -123,16 +123,19 @@ class ClubCreate(BaseModel):
 class AnnouncementCreate(BaseModel):
     content: str = Field(min_length=1, max_length=500)
     availability: Optional[str] = None
-    party_size: int = Field(default=1, ge=1, le=4)  # joueurs déjà réunis (organisateur inclus)
+    party_size: int = Field(default=1, ge=1, le=4)  # rétrocompat (joueurs déjà réunis, organisateur inclus)
+    offline_names: List[str] = Field(default_factory=list)  # prénoms des joueurs hors-app déjà réunis (max 3)
 
 class AnnouncementOut(BaseModel):
     id: str
     club_id: str
+    club_name: Optional[str] = None
     author: UserPublic
     content: str
     availability: Optional[str] = None
     created_at: str
     players: List[UserPublic] = []
+    offline_players: List[str] = []
     offline_count: int = 0
     total_players: int = 1
     max_players: int = 4
@@ -353,24 +356,32 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
 # ============ ANNOUNCEMENTS (Match requests per Club, 4 players) ============
 MAX_PLAYERS = 4
 
-async def serialize_announcement(a: dict, current_user_id: str) -> dict:
+async def serialize_announcement(a: dict, current_user_id: str, club: Optional[dict] = None) -> dict:
     author = await db.users.find_one({"id": a["author_id"]})
     player_ids = a.get("players") or [a["author_id"]]
-    offline_count = a.get("offline_count", 0)
+    # offline players: prefer named list; fall back to legacy offline_count (unnamed)
+    offline_names = a.get("offline_names")
+    if offline_names is None:
+        offline_names = ["" for _ in range(a.get("offline_count", 0))]
+    offline_count = len(offline_names)
     players = []
     for pid in player_ids:
         pu = await db.users.find_one({"id": pid})
         if pu:
             players.append(user_public(pu))
     total = len(players) + offline_count
+    if club is None:
+        club = await db.clubs.find_one({"id": a["club_id"]})
     return {
         "id": a["id"],
         "club_id": a["club_id"],
+        "club_name": club["name"] if club else None,
         "author": user_public(author) if author else None,
         "content": a["content"],
         "availability": a.get("availability"),
         "created_at": a["created_at"],
         "players": players,
+        "offline_players": offline_names,
         "offline_count": offline_count,
         "total_players": total,
         "max_players": MAX_PLAYERS,
@@ -388,6 +399,19 @@ async def list_announcements(club_id: str, user=Depends(current_user)):
     items = await db.announcements.find({"club_id": club_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
     out = []
     for a in items:
+        s = await serialize_announcement(a, user["id"], club)
+        if s["author"]:
+            out.append(s)
+    return out
+
+@api_router.get("/matches/history")
+async def matches_history(user=Depends(current_user)):
+    # All matches where the current user is a participant (author or joined)
+    items = await db.announcements.find(
+        {"$or": [{"players": user["id"]}, {"author_id": user["id"]}]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    out = []
+    for a in items:
         s = await serialize_announcement(a, user["id"])
         if s["author"]:
             out.append(s)
@@ -398,6 +422,12 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
     club = await db.clubs.find_one({"id": club_id})
     if not club:
         raise HTTPException(404, "Club introuvable")
+    # Determine offline players (named preferred; fall back to party_size count)
+    offline_names = [n.strip() for n in (body.offline_names or []) if n.strip()][:3]
+    if not offline_names and body.party_size > 1:
+        offline_names = ["" for _ in range(body.party_size - 1)]
+    if 1 + len(offline_names) > MAX_PLAYERS:
+        offline_names = offline_names[:MAX_PLAYERS - 1]
     ann_id = str(uuid.uuid4())
     ann = {
         "id": ann_id,
@@ -406,11 +436,11 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "content": body.content,
         "availability": body.availability,
         "players": [user["id"]],
-        "offline_count": max(0, body.party_size - 1),
+        "offline_names": offline_names,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(ann)
-    return await serialize_announcement(ann, user["id"])
+    return await serialize_announcement(ann, user["id"], club)
 
 @api_router.post("/announcements/{ann_id}/join")
 async def join_announcement(ann_id: str, user=Depends(current_user)):
@@ -418,7 +448,8 @@ async def join_announcement(ann_id: str, user=Depends(current_user)):
     if not ann:
         raise HTTPException(404, "Annonce introuvable")
     players = ann.get("players") or [ann["author_id"]]
-    offline_count = ann.get("offline_count", 0)
+    offline_names = ann.get("offline_names")
+    offline_count = len(offline_names) if offline_names is not None else ann.get("offline_count", 0)
     if user["id"] in players:
         return await serialize_announcement(ann, user["id"])
     if len(players) + offline_count >= MAX_PLAYERS:

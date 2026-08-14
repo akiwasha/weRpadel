@@ -49,8 +49,9 @@ export const api = {
   getClub: (id: string) => request(`/clubs/${id}`),
   createClub: (body: any) => request("/clubs", { method: "POST", body: JSON.stringify(body) }),
   announcements: (clubId: string) => request(`/clubs/${clubId}/announcements`),
-  postAnnouncement: (clubId: string, content: string, availability?: string, party_size?: number) =>
-    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, availability, party_size: party_size ?? 1 }) }),
+  postAnnouncement: (clubId: string, content: string, availability?: string, offlineNames?: string[]) =>
+    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, availability, offline_names: offlineNames ?? [] }) }),
+  matchHistory: () => request("/matches/history"),
   joinAnnouncement: (annId: string) => request(`/announcements/${annId}/join`, { method: "POST" }),
   leaveAnnouncement: (annId: string) => request(`/announcements/${annId}/leave`, { method: "POST" }),
   conversations: () => request("/messages/conversations"),

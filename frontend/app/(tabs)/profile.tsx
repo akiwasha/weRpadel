@@ -77,6 +77,21 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
         </Pressable>
 
+        <Pressable
+          testID="my-matches-card"
+          onPress={() => router.push("/matches")}
+          style={styles.matchesCard}
+        >
+          <View style={styles.matchesIcon}>
+            <Ionicons name="tennisball" size={20} color={colors.onBrandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.matchesTitle}>Mes matchs</Text>
+            <Text style={styles.matchesSub}>Historique et joueurs rencontrés</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceTertiary} />
+        </Pressable>
+
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Fiabilité</Text>
           <View style={styles.reliabilityRow}>
@@ -145,6 +160,13 @@ const styles = StyleSheet.create({
   premiumIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
   premiumTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurfaceInverse },
   premiumSub: { fontSize: type.sm, color: colors.onSurfaceInverse, opacity: 0.85, marginTop: 2 },
+  matchesCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg,
+  },
+  matchesIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  matchesTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface },
+  matchesSub: { fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
   cardLabel: { fontSize: type.base, color: colors.onSurfaceSecondary, fontWeight: "700" },
   reliabilityRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 4 },
   reliabilityValue: { fontSize: type.xl, fontWeight: "800", color: colors.onSurface },
