@@ -28,6 +28,7 @@ type Match = {
   is_author: boolean;
   can_rate: boolean;
   has_rated: boolean;
+  reminders_muted: boolean;
 };
 
 const GROUPS: { key: string; label: string }[] = [
@@ -104,6 +105,17 @@ export default function MatchHistory() {
   const openRate = (m: Match) => {
     setRatingsMap({});
     setRateFor(m);
+  };
+
+  const toggleMute = async (m: Match) => {
+    setMatches((prev) => prev.map((x) => (x.id === m.id ? { ...x, reminders_muted: !x.reminders_muted } : x)));
+    try {
+      const updated = await api.toggleMute(m.id);
+      setMatches((prev) => prev.map((x) => (x.id === m.id ? updated : x)));
+    } catch (e) {
+      console.log(e);
+      setMatches((prev) => prev.map((x) => (x.id === m.id ? { ...x, reminders_muted: !x.reminders_muted } : x)));
+    }
   };
 
   const proposeWeekly = (m: Match) => {
@@ -250,6 +262,23 @@ export default function MatchHistory() {
                   </View>
                 ))}
               </View>
+
+              {item.status === "upcoming" && item.match_date && (
+                <Pressable
+                  testID={`mute-${item.id}`}
+                  onPress={() => toggleMute(item)}
+                  style={styles.muteBtn}
+                >
+                  <Ionicons
+                    name={item.reminders_muted ? "notifications-off-outline" : "notifications-outline"}
+                    size={17}
+                    color={item.reminders_muted ? colors.onSurfaceTertiary : colors.brandPrimary}
+                  />
+                  <Text style={[styles.muteText, item.reminders_muted && { color: colors.onSurfaceTertiary }]}>
+                    {item.reminders_muted ? "Rappels coupés · toucher pour réactiver" : "Rappels activés (24h + 2h avant)"}
+                  </Text>
+                </Pressable>
+              )}
 
               {item.can_rate && (
                 <Pressable
@@ -452,6 +481,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill, paddingVertical: 10, borderWidth: 1.5, borderColor: colors.brandPrimary,
   },
   weeklyText: { color: colors.brandPrimary, fontWeight: "800", fontSize: type.base },
+  muteBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.xs,
+    paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.md,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  muteText: { color: colors.brandPrimary, fontWeight: "700", fontSize: type.sm, flexShrink: 1 },
   rateBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
     backgroundColor: colors.warning, borderRadius: radius.pill, paddingVertical: 11, marginTop: spacing.xs,

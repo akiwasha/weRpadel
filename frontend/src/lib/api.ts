@@ -58,6 +58,7 @@ export const api = {
     request(`/announcements/${annId}/replay`, { method: "POST", body: JSON.stringify({ match_date: matchDate, match_end_date: matchEndDate ?? null }) }),
   rateMatch: (annId: string, ratings: { user_id: string; stars: number }[]) =>
     request(`/announcements/${annId}/rate`, { method: "POST", body: JSON.stringify({ ratings }) }),
+  toggleMute: (annId: string) => request(`/announcements/${annId}/mute`, { method: "POST" }),
   joinAnnouncement: (annId: string) => request(`/announcements/${annId}/join`, { method: "POST" }),
   leaveAnnouncement: (annId: string) => request(`/announcements/${annId}/leave`, { method: "POST" }),
   conversations: () => request("/messages/conversations"),

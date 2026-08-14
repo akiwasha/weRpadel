@@ -84,3 +84,8 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 
 ## Reproposer la semaine prochaine (Itération 12)
 - Bouton sur chaque carte "Passés" 4/4 ayant un `match_date` : recrée en 1 tap le même match +7 jours (même heure/durée, même équipe) via l'endpoint `replay` existant (envoie une invitation par message à chaque co-joueur). Confirmation via `Alert`. testID `weekly-<id>`.
+
+## Couper les rappels par match (Itération 12)
+- Chaque joueur peut couper/réactiver les rappels d'un match précis. Champ `muted_by: [user_id]` sur l'annonce. Endpoint toggle `POST /api/announcements/{id}/mute`. serialize → `reminders_muted` (pour le viewer).
+- `reminder_tick` exclut les user_id présents dans `muted_by` des destinataires push.
+- UI /matches (onglet "À venir", carte avec `match_date`) : bouton cloche `mute-<id>` "Rappels activés (24h + 2h avant)" ↔ "Rappels coupés · toucher pour réactiver".

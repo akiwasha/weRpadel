@@ -169,6 +169,7 @@ class AnnouncementOut(BaseModel):
     is_author: bool = False
     can_rate: bool = False
     has_rated: bool = False
+    reminders_muted: bool = False
 
 class MessageCreate(BaseModel):
     to_user_id: str
@@ -308,10 +309,12 @@ async def register_push(body: RegisterPushBody):
 # ============ MATCH REMINDERS (scheduled push: 24h + 2h before start) ============
 async def _send_reminder(a: dict, field: str, title: str, message: str, idem: str):
     players = a.get("players") or [a["author_id"]]
-    if players:
+    muted = a.get("muted_by") or []
+    recipients = [p for p in players if p not in muted]
+    if recipients:
         try:
             await send_push(
-                recipients=players,
+                recipients=recipients,
                 data={"title": title, "message": message, "action_url": f"/club/{a['club_id']}"},
                 idempotency_key=idem,
             )
@@ -577,6 +580,7 @@ async def serialize_announcement(a: dict, viewer: dict, club: Optional[dict] = N
         "is_author": current_user_id == a["author_id"],
         "can_rate": can_rate,
         "has_rated": current_user_id in rated_by,
+        "reminders_muted": current_user_id in (a.get("muted_by") or []),
     }
 
 @api_router.get("/clubs/{club_id}/announcements")
@@ -742,6 +746,20 @@ async def rate_match(ann_id: str, body: MatchRatingInput, user=Depends(current_u
         rated_by.append(user["id"])
     await db.announcements.update_one({"id": ann_id}, {"$set": {"rated_by": rated_by}})
     ann["rated_by"] = rated_by
+    return await serialize_announcement(ann, user)
+
+@api_router.post("/announcements/{ann_id}/mute")
+async def toggle_match_reminders(ann_id: str, user=Depends(current_user)):
+    ann = await db.announcements.find_one({"id": ann_id})
+    if not ann:
+        raise HTTPException(404, "Match introuvable")
+    muted = ann.get("muted_by") or []
+    if user["id"] in muted:
+        muted = [m for m in muted if m != user["id"]]
+    else:
+        muted.append(user["id"])
+    await db.announcements.update_one({"id": ann_id}, {"$set": {"muted_by": muted}})
+    ann["muted_by"] = muted
     return await serialize_announcement(ann, user)
 
 # ============ MESSAGES (Private DM) ============
