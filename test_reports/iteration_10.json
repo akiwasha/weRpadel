@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 10 fully validated. Backend pytest 8/8 pass on test_iteration10.py. GET /api/clubs and /api/clubs/{id} expose price_per_hour on all 12 seed clubs (Padel Horizon Paris=40, Padel Toulouse Sud=28 verified; all seed prices numeric in [10,200]). POST /api/clubs accepts optional price_per_hour and enforces the 0..200 Pydantic bound (999 -> 422, -5 -> 422); omission yields price_per_hour=null; created value round-trips via GET. Frontend UI: club Infos tab renders 'Location du terrain' card with 3 rows testID price-row-1 / price-row-1.5 / price-row-2. Live check on Padel Horizon Paris (40€/h) shows: 1h => 40.00€ terrain / 10.00€ /joueur, 1h30 => 60.00€ / 15.00€, 2h => 80.00€ / 20.00€ — math correct (÷4). /matches Passés tab now lists only 4/4 matches (confirmed a 3/4 card is absent from Passés; the single visible Passés card is 4/4 and shows the Rejouer button + a full 4-player chip row). Replay button replay-<id> only rendered on is_full cards (upcoming tab: 2 cards with 1/4 have no replay btn, 1 card with 4/4 shows it — spec compliant). Replay modal correctly shows team chips (Toi, JulieSmash, Paul, Sarah), 'Étape 2 : choisis la date et l'heure' hint text, MatchDatePicker (replay-day-<i> / replay-hour-<h>) and replay-confirm — confirming from Passés creates the new match in À venir. suggest-club form exposes suggest-price numeric input. Group counts show correctly (À venir 5, En cours 1, Passés 1). Regression OK: auth, favorites list, history serialization (is_full/status/match_date/total_players present). Only cosmetic RN Web 'shadow*' and 'pointerEvents' deprecation warnings remain.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet (RN Web preview)", "issue": "Deprecation warning: 'shadow*' style props are deprecated, use 'boxShadow'. Cosmetic only, non-blocking on native. Reference: multiple StyleSheet.create blocks in /app/frontend/app/**."},
+      {"component": "props.pointerEvents (RN Web preview)", "issue": "Deprecation warning: props.pointerEvents is deprecated, use style.pointerEvents. Cosmetic only. Likely originates from a third-party component (Modal/overlay)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration10.py",
+    "/app/test_reports/pytest/iter10_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate remaining shadow* style props to boxShadow and switch pointerEvents prop to style.pointerEvents to silence RN Web deprecation warnings (non-blocking, does not affect native)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:106-125 ClubOut/ClubCreate correctly expose Optional[float] price_per_hour with Field(ge=0, le=200) — Pydantic enforces the 0..200 bound (422 on out-of-range).",
+    "server.py:395-410 suggest_club (POST /clubs) persists body.price_per_hour into the stored club document.",
+    "server.py:713-725 PRICE_MAP backfill runs idempotently on startup for both {price_per_hour: None} and {price_per_hour: {$exists: False}} — safe for existing DBs.",
+    "matches.tsx:36-41 inGroup() returns is_full && (status in {past, undated}) for the 'past' key — matches spec exactly and filters out 3/4 matches from Passés.",
+    "matches.tsx:182-186 replay-<id> button is only rendered when item.is_full — guarantees a 4-name team chip row in the modal.",
+    "matches.tsx:224-228 modal shows the exact 'Étape 2 : choisis la date et l'heure' hint before the MatchDatePicker.",
+    "club/[id].tsx:170-198 price card renders only when price_per_hour != null; testID price-row-<mult> for 1/1.5/2 with court=price*mult and perPlayer=court/4 (verified visually: 40/60/80 and 10/15/20 for Paris).",
+    "suggest-club.tsx:78 suggest-price input has keyboardType='numeric' and forwards the parsed value to api.createClub as price_per_hour."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration10.py (new)",
+    "/app/test_reports/pytest/iter10_results.xml (new)",
+    "/app/test_reports/iteration_10.json (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% of tested flows (price card + math, Passés 4/4-only filter, replay gating on is_full, replay modal with team chips + Étape 2 + picker + confirm, suggest-price input, group tabs & counts)"},
+  "seed_data_creation": "Created two TEST_iter10 clubs via POST /api/clubs (with price=33 and without price). Left in DB (small volume, prefixed for easy cleanup). Also created replayed match from an existing TEST_iter9 4/4 source (verified count bump on À venir).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 10 fully green. Backend adds Club.price_per_hour (Optional[float], Field ge=0 le=200), exposed on ClubOut, accepted by ClubCreate/POST /api/clubs and backfilled on startup via PRICE_MAP for the 12 seed clubs (Paris=40, Lyon=32, Marseille=34, Toulouse=28, Bordeaux=30, Nice=36, Nantes=26, Strasbourg=28, Lille=30, Rennes=26, Montpellier=30, Grenoble=28). Frontend testIDs added this iter: club/[id] tab-info -> price-row-1 / price-row-1.5 / price-row-2 (each row shows Durée / Terrain (price*mult) / /joueur (÷4)); suggest-club form field testID='suggest-price' (numeric). matches.tsx inGroup('past') now = is_full && (status past|undated). Replay button replay-<id> only when item.is_full. Modal has team chips, 'Étape 2 : choisis la date et l'heure' text, replay-day-<i> / replay-hour-<h> / replay-confirm / replay-close. Credentials unchanged: marc/julie/kevin @padel.fr / password123 — marc is Premium and has 4/4 history rows.",
+  "rca_of_issue": "N/A — no bugs found this iteration."
+}

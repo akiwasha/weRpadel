@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 9 fully validated end-to-end. Backend pytest 16/16 pass. Match date+status: POST /clubs/{id}/announcements with match_date sets status=upcoming/ongoing/past based on 2h window and returns undated when omitted; status also present in GET /clubs/{id}/announcements and /matches/history. Replay: POST /api/announcements/{id}/replay creates a new match in the same club with the same registered players + copied offline_names, sends a private DM to each co-player (verified via unread_count increment and GET /messages/{marc} contains 'rejouer' invite from marc). Favorites: POST /users/{id}/favorite toggles ({is_favorite:true/false}), GET /users/favorites returns enriched list, get_user returns viewer-specific is_favorite, self-favoriting returns 400, route /users/favorites is declared before /users/{id} (routing verified). Frontend: club composer exposes MatchDatePicker (compose-day-<i> + compose-hour-<h>) — post creates a card with date pill + 'À venir' status tag. /matches screen has 3 segmented tabs (group-upcoming/ongoing/past) with live counts; each card exposes replay-<id> that opens a modal with MatchDatePicker (replay-day-<i>/replay-hour-<h>) + replay-confirm — confirming creates the match and the 'À venir' tab count increments. Player profile shows favorite-btn (heart) that toggles favorite state (turns red when favorited), reliability card labeled 'Fiabilité' with criteria text 'Ponctualité · sympathie · pas d'annulation de dernière minute · participe au règlement du terrain' and 'Noter la fiabilité' explicitly clarifies '… — pas le niveau de jeu.'. Profile screen exposes favorites-btn -> /favorites showing fav-<id> rows that open the player profile. Regression OK: join/leave, historique 4/4, composer offline_names chips, blur/lock non-abonné intact. Only cosmetic 'shadow*' RN Web warnings remain.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet (web preview)", "issue": "RN Web deprecation warnings persist: 'shadow*' style props deprecated (use boxShadow). Cosmetic on web preview, non-blocking on native. Reference: multiple StyleSheet.create blocks."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9.py",
+    "/app/test_reports/pytest/iter9_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate remaining shadow* style props to boxShadow to silence RN Web warnings (non-blocking)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:225-240 match_status handles Z-suffix ISO, missing tzinfo, and 2h ongoing window correctly; returns 'undated' on parse failure (safe fallback).",
+    "server.py:302-310 /users/favorites is declared BEFORE /users/{user_id} — route ordering verified live; a GET on /users/favorites returns a list, not a 404 from the {id} handler.",
+    "server.py:319-334 toggle_favorite: rejects self (400), 404 on unknown target, atomic $set of favorites list; response shape {is_favorite: bool}.",
+    "server.py:501-545 replay copies src.players + src.offline_names into a new announcement authored by the caller, and inserts a private DM (with correct conv_id) for each other registered player — verified via unread_count delta.",
+    "server.py:207-223 user_public now takes optional viewer and adds is_favorite bool — used consistently in get_user, rate_user, list_favorites and serialize_announcement.players[].",
+    "matches.tsx exposes group-upcoming/ongoing/past, replay-<id>, replay-day/hour/confirm/close; club/[id].tsx composer uses MatchDatePicker with compose-day/hour prefix; player/[id].tsx has favorite-btn heart + reliability criteria text incl. 'pas le niveau de jeu'; profile.tsx has favorites-btn -> /favorites listing fav-<id> rows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9.py (new)",
+    "/app/test_reports/pytest/iter9_results.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% of tested flows (composer with date, matches 3 tabs, replay modal, favorites toggle + list, reliability text)"},
+  "seed_data_creation": "Test announcements prefixed with TEST_iter9 created via marc@padel.fr; a replayed match with julie as co-player was created (invite DM sent). No cleanup needed (small volume, matches existing seed pattern).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 9 fully green. Backend routes: match_date/status via serialize_announcement, POST /announcements/{id}/replay (auth req, 404 unknown), POST /users/{id}/favorite (400 self, 404 unknown), GET /users/favorites (declared BEFORE /users/{id}). Frontend testIDs: profile.favorites-btn, /favorites screen fav-back + fav-<id>, /matches group-upcoming/ongoing/past + history-match-<id> + replay-<id> + replay-day-<i>/replay-hour-<h>/replay-confirm/replay-close, player.favorite-btn + msg-player-btn, club composer compose-day-<i>/compose-hour-<h>. Credentials: marc@padel.fr (Premium, has history and existing favorite=JulieSmash after this run), julie@padel.fr, kevin@padel.fr — all password123. Test store price expected $79.99 (paywall not retested this iter — unchanged from iter7).",
+  "rca_of_issue": "N/A — no bugs found this iteration."
+}

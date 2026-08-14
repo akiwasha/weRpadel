@@ -36,9 +36,14 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Mon profil</Text>
-          <Pressable testID="edit-profile-btn" onPress={() => router.push("/edit-profile")} style={styles.editBtn}>
-            <Ionicons name="pencil" size={18} color={colors.brandPrimary} />
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Pressable testID="favorites-btn" onPress={() => router.push("/favorites")} style={styles.editBtn}>
+              <Ionicons name="heart" size={18} color={colors.error} />
+            </Pressable>
+            <Pressable testID="edit-profile-btn" onPress={() => router.push("/edit-profile")} style={styles.editBtn}>
+              <Ionicons name="pencil" size={18} color={colors.brandPrimary} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.avatarWrap}>

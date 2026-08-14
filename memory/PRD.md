@@ -52,3 +52,26 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - Badge "Joueur vérifié" (fiabilité ≥ 4,5 sur ≥ 5 avis) affiché partout.
 - Pastille de messages non lus sur l'onglet Messages.
 - Carte géolocalisée des clubs (react-native-maps + expo-location) avec toggle Liste/Carte.
+
+## Matchmaking avancé (2026-08-14)
+- Match à 4 joueurs : join/leave, joueurs hors-app nommés (pastille grise).
+- Historique /matches : onglets À venir / En cours / Passés. "Passés" = uniquement les matchs 4/4.
+- Rejouer : dupliquer un match 4/4 passé en choisissant une nouvelle date/heure.
+- Joueurs favoris (cœur privé).
+- Tarifs terrain par club (1h / 1h30 / 2h + coût ÷ 4 joueurs).
+
+## Créneaux début→fin + statut auto (Itération 11)
+- Chaque match a un `match_date` (début) ET un `match_end_date` (fin), choisis via MatchDatePicker (Date + Heure de début + Durée 1h/1h30/2h).
+- Statut calculé backend `match_status(start, end)` : upcoming / ongoing / past. Dès que l'heure de fin est franchie → le match bascule automatiquement dans l'onglet "Passés".
+
+## Note d'après-match (Itération 11)
+- Pour un match 4/4 dont l'heure de fin est passée, chaque joueur réel peut noter la FIABILITÉ (1-5 ⭐) de ses co-équipiers réels (pas les joueurs hors-app, pas soi-même).
+- Endpoint `POST /api/announcements/{id}/rate` body `{ratings:[{user_id,stars}]}` → applique les notes (reliability_sum/count) et marque `rated_by`. Champs serialize : `can_rate`, `has_rated`.
+- UI /matches : modal d'invitation auto-ouvert si note en attente + bouton "Noter la fiabilité des joueurs" par carte ; après validation → "Joueurs notés · merci !".
+
+## Notification "Match complet" (Emergent Push — Itération 11)
+- Emergent managed push (relay SuprSend). Endpoints backend : `POST /api/register-push` + helper `send_push`.
+- Déclenchement : quand le 4e joueur rejoint un match (`/announcements/{id}/join` → 4/4), l'ORGANISATEUR reçoit une push "Match complet ! 🎾" avec `action_url` `/club/{club_id}`. Envoi wrappé try/except (non bloquant).
+- Frontend : `app/_layout.tsx` (handler + channel Android au module scope, tap handlers warm/cold, nudge hebdo si permission refusée) ; `src/lib/push.ts` `registerForPush(userId)` appelé à chaque auth.
+- Config : `app.json` plugin `expo-notifications` + `android.googleServicesFile: ./google-services.json`.
+- ⚠️ Ne fonctionne PAS en Expo Go / preview web. Nécessite build iOS/Android réel. `EMERGENT_PUSH_KEY=placeholder` (remplacé par le déployeur au build). L'utilisateur doit fournir `google-services.json` (Firebase, package `com.emergent.padelplay.y9om9x`) + clé APNs `.p8` (iOS) et Google service account JSON (Android) au moment du build.

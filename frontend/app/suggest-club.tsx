@@ -19,6 +19,7 @@ export default function SuggestClub() {
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [address, setAddress] = useState("");
+  const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -28,9 +29,10 @@ export default function SuggestClub() {
     if (name.length < 2 || city.length < 2 || !region) {
       return setErr("Merci de remplir le nom, la ville et la région");
     }
+    const priceNum = price.trim() ? parseFloat(price.replace(",", ".")) : undefined;
     setLoading(true);
     try {
-      await api.createClub({ name, city, region, address: address || undefined });
+      await api.createClub({ name, city, region, address: address || undefined, price_per_hour: priceNum });
       setSuccess(true);
       setTimeout(() => router.back(), 1500);
     } catch (e: any) {
@@ -71,6 +73,9 @@ export default function SuggestClub() {
 
           <Text style={styles.label}>Adresse (optionnel)</Text>
           <TextInput testID="suggest-address" value={address} onChangeText={setAddress} style={styles.input} placeholder="12 rue du Padel" placeholderTextColor={colors.onSurfaceTertiary} />
+
+          <Text style={styles.label}>Prix du terrain / heure (optionnel)</Text>
+          <TextInput testID="suggest-price" value={price} onChangeText={setPrice} style={styles.input} placeholder="ex: 32" placeholderTextColor={colors.onSurfaceTertiary} keyboardType="numeric" />
 
           {err && <Text style={styles.err}>{err}</Text>}
           {success && <Text style={styles.success}>✅ Suggestion envoyée !</Text>}

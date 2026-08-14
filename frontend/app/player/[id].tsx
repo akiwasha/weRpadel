@@ -17,17 +17,28 @@ export default function PlayerProfile() {
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(false);
   const [selectedStars, setSelectedStars] = useState<number | null>(null);
+  const [isFav, setIsFav] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
       const p = await api.getUser(id);
       setPlayer(p);
+      setIsFav(!!p.is_favorite);
     } catch (e) { console.log(e); }
     finally { setLoading(false); }
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const toggleFav = async () => {
+    if (!id) return;
+    setIsFav((v) => !v);
+    try {
+      const r = await api.toggleFavorite(id);
+      setIsFav(r.is_favorite);
+    } catch (e) { console.log(e); setIsFav((v) => !v); }
+  };
 
   const rate = async (stars: number) => {
     if (!id) return;
@@ -53,7 +64,13 @@ export default function PlayerProfile() {
           <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.headerTitle}>Profil joueur</Text>
-        <View style={{ width: 40 }} />
+        {isMe ? (
+          <View style={{ width: 40 }} />
+        ) : (
+          <Pressable testID="favorite-btn" onPress={toggleFav} style={styles.favBtn}>
+            <Ionicons name={isFav ? "heart" : "heart-outline"} size={24} color={isFav ? colors.error : colors.onSurfaceSecondary} />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}>
@@ -75,6 +92,7 @@ export default function PlayerProfile() {
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Fiabilité</Text>
+          <Text style={styles.criteria}>Ponctualité · sympathie · pas d’annulation de dernière minute · participe au règlement du terrain</Text>
           <View style={{ flexDirection: "row", gap: 4, marginTop: spacing.sm }}>
             {[1, 2, 3, 4, 5].map((i) => (
               <Ionicons
@@ -101,6 +119,7 @@ export default function PlayerProfile() {
         {!isMe && (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Noter la fiabilité</Text>
+            <Text style={styles.criteria}>Note uniquement la fiabilité (ponctualité, sympathie, pas d’annulation de dernière minute, règlement du terrain) — pas le niveau de jeu.</Text>
             <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, justifyContent: "center" }}>
               {[1, 2, 3, 4, 5].map((i) => (
                 <Pressable
@@ -146,6 +165,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  favBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  criteria: { fontSize: 11, color: colors.onSurfaceTertiary, lineHeight: 15, marginTop: 2 },
   headerTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface },
   top: { alignItems: "center", gap: spacing.sm, paddingTop: spacing.md },
   avatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: colors.surfaceTertiary },

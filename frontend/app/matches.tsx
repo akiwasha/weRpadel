@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import MatchDatePicker, { formatMatchRange } from "@/src/components/MatchDatePicker";
 
 type Player = { id: string; pseudo: string; avatar_url: string | null; level: string };
 type Match = {
@@ -15,6 +16,9 @@ type Match = {
   club_name: string | null;
   content: string;
   availability: string | null;
+  match_date: string | null;
+  match_end_date: string | null;
+  status: string;
   created_at: string;
   players: Player[];
   offline_players: string[];
@@ -22,7 +26,22 @@ type Match = {
   slots_left: number;
   is_full: boolean;
   is_author: boolean;
+  can_rate: boolean;
+  has_rated: boolean;
 };
+
+const GROUPS: { key: string; label: string }[] = [
+  { key: "upcoming", label: "À venir" },
+  { key: "ongoing", label: "En cours" },
+  { key: "past", label: "Passés" },
+];
+
+function inGroup(m: Match, key: string): boolean {
+  if (key === "upcoming") return m.status === "upcoming";
+  if (key === "ongoing") return m.status === "ongoing";
+  // Passés = matchs réellement joués -> 4 joueurs réunis
+  return m.is_full && (m.status === "past" || m.status === "undated");
+}
 
 function fmt(iso: string) {
   try {
@@ -38,16 +57,72 @@ export default function MatchHistory() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [group, setGroup] = useState("upcoming");
+  const [replayFor, setReplayFor] = useState<Match | null>(null);
+  const [replayDate, setReplayDate] = useState<string | null>(null);
+  const [replayEndDate, setReplayEndDate] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
+  const [rateFor, setRateFor] = useState<Match | null>(null);
+  const [ratingsMap, setRatingsMap] = useState<Record<string, number>>({});
+  const [savingRating, setSavingRating] = useState(false);
+  const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const m = await api.matchHistory();
       setMatches(m);
+      if (!autoOpenedRef.current) {
+        const pending = m.find((x: Match) => x.can_rate);
+        if (pending) {
+          autoOpenedRef.current = true;
+          setGroup("past");
+          setRateFor(pending);
+          setRatingsMap({});
+        }
+      }
     } catch (e) { console.log(e); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const doReplay = async () => {
+    if (!replayFor || !replayDate) return;
+    setReplaying(true);
+    try {
+      await api.replayMatch(replayFor.id, replayDate, replayEndDate);
+      setReplayFor(null);
+      setReplayDate(null);
+      setReplayEndDate(null);
+      setGroup("upcoming");
+      await load();
+    } catch (e) { console.log(e); }
+    finally { setReplaying(false); }
+  };
+
+  const openRate = (m: Match) => {
+    setRatingsMap({});
+    setRateFor(m);
+  };
+
+  const rateCoPlayers = rateFor ? rateFor.players.filter((p) => p.id !== user?.id) : [];
+  const allRated = rateCoPlayers.length > 0 && rateCoPlayers.every((p) => ratingsMap[p.id] > 0);
+
+  const doRate = async () => {
+    if (!rateFor || !allRated) return;
+    setSavingRating(true);
+    try {
+      const ratings = rateCoPlayers.map((p) => ({ user_id: p.id, stars: ratingsMap[p.id] }));
+      await api.rateMatch(rateFor.id, ratings);
+      setRateFor(null);
+      setRatingsMap({});
+      await load();
+    } catch (e) { console.log(e); }
+    finally { setSavingRating(false); }
+  };
+
+  const activeGroup = GROUPS.find((g) => g.key === group)!;
+  const visible = matches.filter((m) => inGroup(m, group));
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -59,12 +134,28 @@ export default function MatchHistory() {
         <View style={{ width: 40 }} />
       </View>
 
+      <View style={styles.segment}>
+        {GROUPS.map((g) => {
+          const count = matches.filter((m) => inGroup(m, g.key)).length;
+          return (
+            <Pressable
+              key={g.key}
+              testID={`group-${g.key}`}
+              onPress={() => setGroup(g.key)}
+              style={[styles.segmentBtn, group === g.key && styles.segmentActive]}
+            >
+              <Text style={[styles.segmentText, group === g.key && styles.segmentTextActive]}>{g.label} {count > 0 ? `(${count})` : ""}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
-      ) : matches.length === 0 ? (
+      ) : visible.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="tennisball-outline" size={64} color={colors.onSurfaceTertiary} />
-          <Text style={styles.emptyTitle}>Aucun match pour l’instant</Text>
+          <Text style={styles.emptyTitle}>Aucun match {activeGroup.label.toLowerCase()}</Text>
           <Text style={styles.emptySub}>Rejoins ou crée un match dans un club pour le retrouver ici</Text>
           <Pressable style={styles.cta} onPress={() => router.push("/(tabs)")}>
             <Text style={styles.ctaText}>Explorer les clubs</Text>
@@ -72,7 +163,7 @@ export default function MatchHistory() {
         </View>
       ) : (
         <FlatList
-          data={matches}
+          data={visible}
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.brandPrimary} />}
@@ -88,7 +179,7 @@ export default function MatchHistory() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.clubName} numberOfLines={1}>{item.club_name || "Club"}</Text>
-                  <Text style={styles.date}>{fmt(item.created_at)}{item.availability ? ` · ${item.availability}` : ""}</Text>
+                  <Text style={styles.date}>{item.match_date ? formatMatchRange(item.match_date, item.match_end_date) : fmt(item.created_at)}</Text>
                 </View>
                 {item.is_full ? (
                   <View style={styles.confirmed}><Text style={styles.confirmedText}>4/4</Text></View>
@@ -126,11 +217,134 @@ export default function MatchHistory() {
                   </View>
                 ))}
               </View>
-              <Text style={styles.hint}>Touche un joueur pour lui proposer de rejouer</Text>
+
+              {item.can_rate && (
+                <Pressable
+                  testID={`rate-match-${item.id}`}
+                  onPress={() => openRate(item)}
+                  style={styles.rateBtn}
+                >
+                  <Ionicons name="star" size={18} color={colors.onSurface} />
+                  <Text style={styles.rateText}>Noter la fiabilité des joueurs</Text>
+                </Pressable>
+              )}
+              {item.has_rated && item.is_full && (
+                <View style={styles.ratedTag}>
+                  <Ionicons name="checkmark-circle" size={15} color={colors.success} />
+                  <Text style={styles.ratedText}>Joueurs notés · merci !</Text>
+                </View>
+              )}
+
+              {item.is_full && (
+                <Pressable
+                  testID={`replay-${item.id}`}
+                  onPress={() => { setReplayFor(item); setReplayDate(null); setReplayEndDate(null); }}
+                  style={styles.replayBtn}
+                >
+                  <Ionicons name="repeat" size={18} color={colors.onBrandPrimary} />
+                  <Text style={styles.replayText}>Rejouer avec cette équipe</Text>
+                </Pressable>
+              )}
+              <Text style={styles.hint}>Touche un joueur pour le recontacter</Text>
             </Pressable>
           )}
         />
       )}
+
+      <Modal visible={!!replayFor} transparent animationType="slide" onRequestClose={() => setReplayFor(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Rejouer ensemble</Text>
+              <Pressable testID="replay-close" onPress={() => setReplayFor(null)}>
+                <Ionicons name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            {replayFor && (
+              <View style={styles.teamRow}>
+                {replayFor.players.map((p) => (
+                  <View key={p.id} style={styles.teamChip}>
+                    <Ionicons name="person-circle" size={16} color={colors.brandPrimary} />
+                    <Text style={styles.teamChipText}>{p.id === user?.id ? "Toi" : p.pseudo}</Text>
+                  </View>
+                ))}
+                {replayFor.offline_players.map((n, i) => (
+                  <View key={`o${i}`} style={styles.teamChip}>
+                    <Ionicons name="person" size={14} color={colors.onBrandSecondary} />
+                    <Text style={styles.teamChipText}>{n || "Invité"}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            <Text style={styles.modalSub}>
+              Étape 2 : choisis la date et l’heure. Les 4 joueurs recevront une invitation par message.
+            </Text>
+            <MatchDatePicker value={replayDate} onChange={(s, e) => { setReplayDate(s); setReplayEndDate(e); }} testIDPrefix="replay" />
+            <Pressable
+              testID="replay-confirm"
+              onPress={doReplay}
+              disabled={!replayDate || replaying}
+              style={[styles.replayConfirm, (!replayDate || replaying) && { opacity: 0.5 }]}
+            >
+              {replaying ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={styles.replayConfirmText}>Proposer ce match</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!rateFor} transparent animationType="slide" onRequestClose={() => setRateFor(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>Noter la fiabilité</Text>
+              <Pressable testID="rate-close" onPress={() => setRateFor(null)}>
+                <Ionicons name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <Text style={styles.modalSub}>
+              Le match à {rateFor?.club_name || "ce club"} est terminé. Note la fiabilité de tes partenaires
+              (ponctualité, sympathie, pas d’annulation de dernière minute) — pas leur niveau de jeu.
+            </Text>
+            {rateCoPlayers.map((p) => (
+              <View key={p.id} style={styles.rateRow} testID={`rate-player-${p.id}`}>
+                <View style={styles.rateRowHead}>
+                  {p.avatar_url ? (
+                    <Image source={{ uri: fullUrl(p.avatar_url)! }} style={styles.rateAvatar} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.rateAvatar, styles.fallback]}>
+                      <Text style={{ color: colors.brandPrimary, fontWeight: "800", fontSize: 13 }}>{p.pseudo[0]?.toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.rateName} numberOfLines={1}>{p.pseudo}</Text>
+                </View>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Pressable
+                      key={s}
+                      testID={`rate-${p.id}-star-${s}`}
+                      onPress={() => setRatingsMap((prev) => ({ ...prev, [p.id]: s }))}
+                    >
+                      <Ionicons
+                        name={(ratingsMap[p.id] || 0) >= s ? "star" : "star-outline"}
+                        size={30}
+                        color={colors.warning}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <Pressable
+              testID="rate-confirm"
+              onPress={doRate}
+              disabled={!allRated || savingRating}
+              style={[styles.replayConfirm, (!allRated || savingRating) && { opacity: 0.5 }]}
+            >
+              {savingRating ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={styles.replayConfirmText}>Valider les notes</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -144,6 +358,14 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface },
+  segment: {
+    flexDirection: "row", margin: spacing.lg, marginBottom: spacing.sm,
+    padding: 4, backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
+  },
+  segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, alignItems: "center" },
+  segmentActive: { backgroundColor: colors.surface, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  segmentText: { color: colors.onSurfaceSecondary, fontWeight: "700", fontSize: type.sm },
+  segmentTextActive: { color: colors.onSurface },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
   emptyTitle: { fontSize: type.lg, color: colors.onSurface, fontWeight: "700" },
   emptySub: { fontSize: type.base, color: colors.onSurfaceSecondary, textAlign: "center" },
@@ -175,4 +397,37 @@ const styles = StyleSheet.create({
   },
   offlineChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onBrandSecondary, flexShrink: 1 },
   hint: { fontSize: 11, color: colors.onSurfaceTertiary, marginTop: 2 },
+  replayBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 11, marginTop: spacing.xs,
+  },
+  replayText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  rateBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    backgroundColor: colors.warning, borderRadius: radius.pill, paddingVertical: 11, marginTop: spacing.xs,
+  },
+  rateText: { color: colors.onSurface, fontWeight: "800", fontSize: type.base },
+  ratedTag: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: spacing.xs },
+  ratedText: { color: colors.success, fontWeight: "700", fontSize: type.sm },
+  rateRow: { gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  rateRowHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  rateAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceTertiary },
+  rateName: { fontSize: type.base, fontWeight: "800", color: colors.onSurface, flex: 1 },
+  starsRow: { flexDirection: "row", gap: spacing.sm, justifyContent: "center" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: {
+    backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
+    padding: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.md,
+  },
+  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  modalTitle: { fontSize: type.xl, fontWeight: "800", color: colors.onSurface },
+  modalSub: { fontSize: type.base, color: colors.onSurfaceSecondary, lineHeight: 20 },
+  teamRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  teamChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
+  },
+  teamChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onSurface },
+  replayConfirm: { backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 15, alignItems: "center", marginTop: spacing.sm },
+  replayConfirmText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.lg },
 });

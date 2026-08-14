@@ -38,6 +38,8 @@ export const api = {
   updateMe: (body: any) => request("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
   getUser: (id: string) => request(`/users/${id}`),
   rateUser: (id: string, stars: number) => request(`/users/${id}/rate`, { method: "POST", body: JSON.stringify({ stars }) }),
+  toggleFavorite: (id: string) => request(`/users/${id}/favorite`, { method: "POST" }),
+  favorites: () => request("/users/favorites"),
   listClubs: (search?: string, region?: string) => {
     const q = new URLSearchParams();
     if (search) q.set("search", search);
@@ -49,9 +51,13 @@ export const api = {
   getClub: (id: string) => request(`/clubs/${id}`),
   createClub: (body: any) => request("/clubs", { method: "POST", body: JSON.stringify(body) }),
   announcements: (clubId: string) => request(`/clubs/${clubId}/announcements`),
-  postAnnouncement: (clubId: string, content: string, availability?: string, offlineNames?: string[]) =>
-    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, availability, offline_names: offlineNames ?? [] }) }),
+  postAnnouncement: (clubId: string, content: string, matchDate?: string | null, offlineNames?: string[], matchEndDate?: string | null) =>
+    request(`/clubs/${clubId}/announcements`, { method: "POST", body: JSON.stringify({ content, match_date: matchDate ?? null, match_end_date: matchEndDate ?? null, offline_names: offlineNames ?? [] }) }),
   matchHistory: () => request("/matches/history"),
+  replayMatch: (annId: string, matchDate: string, matchEndDate?: string | null) =>
+    request(`/announcements/${annId}/replay`, { method: "POST", body: JSON.stringify({ match_date: matchDate, match_end_date: matchEndDate ?? null }) }),
+  rateMatch: (annId: string, ratings: { user_id: string; stars: number }[]) =>
+    request(`/announcements/${annId}/rate`, { method: "POST", body: JSON.stringify({ ratings }) }),
   joinAnnouncement: (annId: string) => request(`/announcements/${annId}/join`, { method: "POST" }),
   leaveAnnouncement: (annId: string) => request(`/announcements/${annId}/leave`, { method: "POST" }),
   conversations: () => request("/messages/conversations"),

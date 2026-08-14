@@ -11,6 +11,7 @@ import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedTick } from "@/src/components/VerifiedBadge";
+import MatchDatePicker, { formatMatchRange } from "@/src/components/MatchDatePicker";
 
 type Player = { id: string; pseudo: string; avatar_url: string | null; level: string };
 type Announcement = {
@@ -20,6 +21,9 @@ type Announcement = {
   availability: string | null;
   created_at: string;
   author: { id: string; pseudo: string; avatar_url: string | null; level: string; reliability_avg: number; reliability_count: number; verified?: boolean };
+  match_date: string | null;
+  match_end_date: string | null;
+  status: string;
   players: Player[];
   offline_players: string[];
   offline_count: number;
@@ -42,7 +46,8 @@ export default function ClubDetail() {
   const [tab, setTab] = useState<"info" | "chat">("chat");
   const [items, setItems] = useState<Announcement[]>([]);
   const [text, setText] = useState("");
-  const [availability, setAvailability] = useState("");
+  const [matchDate, setMatchDate] = useState<string | null>(null);
+  const [matchEndDate, setMatchEndDate] = useState<string | null>(null);
   const [offlineNames, setOfflineNames] = useState<string[]>([]);
   const [offlineInput, setOfflineInput] = useState("");
   const [posting, setPosting] = useState(false);
@@ -66,10 +71,11 @@ export default function ClubDetail() {
     if (!text.trim() || !id) return;
     setPosting(true);
     try {
-      const a = await api.postAnnouncement(id, text.trim(), availability.trim() || undefined, offlineNames);
+      const a = await api.postAnnouncement(id, text.trim(), matchDate, offlineNames, matchEndDate);
       setItems([a, ...items]);
       setText("");
-      setAvailability("");
+      setMatchDate(null);
+      setMatchEndDate(null);
       setOfflineNames([]);
       setOfflineInput("");
     } catch (e: any) { console.log(e); }
@@ -163,6 +169,36 @@ export default function ClubDetail() {
               <Text style={styles.infoValue}>{club.announcements_count}</Text>
             </View>
           </View>
+
+          {club.price_per_hour != null && (
+            <View style={styles.priceCard}>
+              <View style={styles.priceHead}>
+                <Ionicons name="pricetag" size={18} color={colors.brandPrimary} />
+                <Text style={styles.priceTitle}>Location du terrain</Text>
+              </View>
+              <View style={styles.priceHeaderRow}>
+                <Text style={[styles.priceCell, styles.priceCellLabel]}>Durée</Text>
+                <Text style={styles.priceCell}>Terrain</Text>
+                <Text style={styles.priceCell}>/ joueur</Text>
+              </View>
+              {[
+                { label: "1 heure", mult: 1 },
+                { label: "1h30", mult: 1.5 },
+                { label: "2 heures", mult: 2 },
+              ].map((r) => {
+                const court = club.price_per_hour * r.mult;
+                const perPlayer = court / 4;
+                return (
+                  <View key={r.label} style={styles.priceRow} testID={`price-row-${r.mult}`}>
+                    <Text style={[styles.priceCell, styles.priceCellLabel]}>{r.label}</Text>
+                    <Text style={styles.priceCell}>{court.toFixed(2)} €</Text>
+                    <Text style={[styles.priceCell, styles.priceCellHi]}>{perPlayer.toFixed(2)} €</Text>
+                  </View>
+                );
+              })}
+              <Text style={styles.priceHint}>Prix indicatif · {club.price_per_hour} €/h le terrain, divisé par 4 joueurs</Text>
+            </View>
+          )}
         </ScrollView>
       ) : (
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
@@ -231,12 +267,22 @@ export default function ClubDetail() {
                     )}
                   </Pressable>
                   <Text style={styles.annContent}>{item.content}</Text>
-                  {item.availability && (
-                    <View style={styles.availPill}>
-                      <Ionicons name="time-outline" size={14} color={colors.onBrandSecondary} />
-                      <Text style={styles.availTxt}>{item.availability}</Text>
-                    </View>
-                  )}
+                  <View style={styles.metaRow}>
+                    {item.match_date ? (
+                      <View style={[styles.datePill, item.status === "past" && styles.datePillPast, item.status === "ongoing" && styles.datePillOngoing]}>
+                        <Ionicons name="calendar" size={13} color={colors.onBrandSecondary} />
+                        <Text style={styles.datePillText}>{formatMatchRange(item.match_date, item.match_end_date)}</Text>
+                      </View>
+                    ) : item.availability ? (
+                      <View style={styles.availPill}>
+                        <Ionicons name="time-outline" size={14} color={colors.onBrandSecondary} />
+                        <Text style={styles.availTxt}>{item.availability}</Text>
+                      </View>
+                    ) : null}
+                    {item.status === "past" && <View style={styles.statusTag}><Text style={styles.statusTagText}>Passé</Text></View>}
+                    {item.status === "ongoing" && <View style={[styles.statusTag, styles.statusOngoing]}><Text style={styles.statusOngoingText}>En cours</Text></View>}
+                    {item.status === "upcoming" && <View style={[styles.statusTag, styles.statusUpcoming]}><Text style={styles.statusUpcomingText}>À venir</Text></View>}
+                  </View>
 
                   {/* Match — joueurs présents (4 max) */}
                   <View style={styles.matchPanel}>
@@ -374,14 +420,7 @@ export default function ClubDetail() {
                     )}
                   </View>
                 </View>
-                <TextInput
-                  testID="ann-availability-input"
-                  value={availability}
-                  onChangeText={setAvailability}
-                  placeholder="Disponibilités (ex: Sam 14h)"
-                  placeholderTextColor={colors.onSurfaceTertiary}
-                  style={styles.availInput}
-                />
+                <MatchDatePicker value={matchDate} onChange={(s, e) => { setMatchDate(s); setMatchEndDate(e); }} testIDPrefix="compose" />
                 <View style={{ flexDirection: "row", gap: spacing.sm }}>
                   <TextInput
                     testID="ann-content-input"
@@ -439,6 +478,15 @@ const styles = StyleSheet.create({
   },
   infoLabel: { color: colors.onSurfaceTertiary, fontSize: type.sm, fontWeight: "700" },
   infoValue: { color: colors.onSurface, fontSize: type.lg, fontWeight: "700", marginTop: 2 },
+  priceCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  priceHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  priceTitle: { fontSize: type.lg, fontWeight: "800", color: colors.onSurface },
+  priceHeaderRow: { flexDirection: "row", paddingBottom: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border, marginTop: spacing.xs },
+  priceRow: { flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  priceCell: { flex: 1, fontSize: type.base, color: colors.onSurface, fontWeight: "700", textAlign: "right" },
+  priceCellLabel: { textAlign: "left", color: colors.onSurfaceSecondary },
+  priceCellHi: { color: colors.brandPrimary, fontWeight: "800" },
+  priceHint: { fontSize: 11, color: colors.onSurfaceTertiary, marginTop: spacing.xs },
   ann: {
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm,
   },
@@ -457,6 +505,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSecondary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill,
   },
   availTxt: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
+  metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
+  datePill: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: colors.brandSecondary, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
+  },
+  datePillPast: { backgroundColor: colors.surfaceTertiary },
+  datePillOngoing: { backgroundColor: "#DCFCE7" },
+  datePillText: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
+  statusTag: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
+  statusTagText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: 11 },
+  statusOngoing: { backgroundColor: colors.success },
+  statusOngoingText: { color: colors.onSuccess, fontWeight: "800", fontSize: 11 },
+  statusUpcoming: { backgroundColor: colors.brandPrimary },
+  statusUpcomingText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: 11 },
   filterRow: { height: 56, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.divider },
   filterChip: {
     flexShrink: 0, height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill,

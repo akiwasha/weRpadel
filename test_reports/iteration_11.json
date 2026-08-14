@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 11 fully validated. Backend pytest 12/12 pass (test_iteration11.py): match_end_date accepted on POST /api/clubs/{id}/announcements and echoed; status computed from match_end_date correctly (upcoming when now<start, ongoing when start<=now<=end, past when now>end). serialize_announcement exposes match_end_date, can_rate, has_rated on both /matches/history and /clubs/{id}/announcements. can_rate is true ONLY when is_full=true AND status==past AND user is a real player AND at least 1 other real player exists AND user not in rated_by; verified false for a fresh non-participant. POST /api/announcements/{id}/rate: 403 for non-participant, ignores self-vote (julie->julie no-op) and unknown user_ids, applies ratings for co-players (marc's reliability_count +1 after julie's rate), then can_rate flips to false and has_rated to true for julie's subsequent history read. POST /api/announcements/{id}/replay accepts match_date+match_end_date and creates a new upcoming 4/4 match with the same team. Frontend E2E on /matches: auto-open of rate modal on load triggered (rate-confirm auto-opened, 3 co-players rate-player-<uid> chips with rate-<uid>-star-<n>), rating all 5-star and clicking rate-confirm makes the button disappear and shows 'Joueurs notés · merci !' — verified visually. Passés tab lists ONLY 4/4 matches (2 cards for marc, both with 4/4 chip). Club chat compose picker shows Date + Heure de début + Durée (compose-day-<i>, compose-hour-<h>, compose-dur-<mins>) with compose-endinfo recap ('Créneau : 19h → 20h'), and announced posts display the range (e.g. lun. 17 août · 19h20 → 20h20). Regressions OK: 4 seed logins (marc/julie/thomas/sophie), club price_per_hour, favorites, history. Only cosmetic RN Web deprecation warnings ('shadow*', pointerEvents) remain.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "StyleSheet.create (RN Web preview)", "issue": "Deprecation warning: 'shadow*' style props are deprecated; use 'boxShadow'. Cosmetic on native. Reference: multiple StyleSheet blocks (e.g. /app/frontend/app/matches.tsx:366, /app/frontend/app/club/[id].tsx:472,588)."},
+      {"component": "Modal / third-party (RN Web)", "issue": "Deprecation warning: props.pointerEvents is deprecated, use style.pointerEvents. Likely originates from a third-party overlay/Modal. Cosmetic only."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate remaining 'shadow*' style props to 'boxShadow' and switch pointerEvents prop to style.pointerEvents to silence RN Web deprecation warnings (non-blocking; native unaffected)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:239-263 match_status(match_date, match_end_date) — defaults end to start+2h if match_end_date is missing (safe backward-compat). Uses timezone-aware UTC comparison; correctly returns upcoming/ongoing/past.",
+    "server.py:441-485 serialize_announcement exposes match_end_date + computes can_rate = is_full AND status=='past' AND is_real_member AND other_real>0 AND user not in rated_by — matches spec exactly.",
+    "server.py:614-633 POST /announcements/{id}/rate — 403 if user not in players; iterates ratings, skips self and non-players (r.user_id==user or not in players); marks user in rated_by (idempotent).",
+    "server.py:538-583 POST /announcements/{id}/replay — accepts match_date + match_end_date, clones players+offline_names, sends invite DM to co-players. New announcement's status is computed from provided end date (verified upcoming in tests).",
+    "matches.tsx:74-82 auto-open of rate modal on first load via autoOpenedRef sentinel — avoids re-opening on refocus. Sets group to 'past'.",
+    "matches.tsx:221-236 rate-match-<id> button rendered iff item.can_rate; ratedTag ('Joueurs notés · merci !') rendered iff item.has_rated && item.is_full — spec compliant.",
+    "matches.tsx:108-122 doRate builds ratings list from co-players only (filters self), uses api.rateMatch — spec compliant.",
+    "MatchDatePicker.tsx:56-60 commit() derives end = start + duration*60000; format testIDs day/hour/dur/endinfo match spec.",
+    "club/[id].tsx:270-285 metaRow renders datePill using formatMatchRange(match_date, match_end_date) with color variants for past/ongoing/upcoming — verified visually on the seeded 4/4 past card ('ven. 14 août · 16h20 → 18h20' with 4/4 confirmed badge)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11.py (new)",
+    "/app/test_reports/pytest/iter11_results.xml (new)",
+    "/app/test_reports/iteration_11.json (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of tested flows (auto-open rate modal, 5-star per co-player, rate-confirm, 'Joueurs notés · merci' appears, Passés lists 4/4 only, compose picker start+duration+endinfo)"},
+  "seed_data_creation": "Created TEST_iter11 announcements on Padel Horizon Paris via marc: 1 upcoming, 1 ongoing, 1 past (solo/not full), and 1 past 4/4 (marc author + julie/thomas/sophie joined). Julie then rated marc via /rate; marc rated the remaining 3 co-players via the frontend UI (5 stars each). All prefixed for cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 11 green — new features fully working. Model additions: AnnouncementCreate.match_end_date, ReplayInput.match_end_date, AnnouncementOut.match_end_date/can_rate/has_rated, MatchRatingInput{ratings:[PlayerRating]}. Endpoint added: POST /api/announcements/{id}/rate. match_status uses match_end_date (falls back to start+2h). Frontend testIDs to remember: matches.tsx rate-match-<id>, rate-player-<uid>, rate-<uid>-star-<n> (1..5), rate-confirm, rate-close; auto-open triggers via first can_rate item on load (autoOpenedRef gates re-open). MatchDatePicker exposes prefix-day-<i> (0..6), prefix-hour-<h> in [8,9,10,12,14,16,18,19,20,21], prefix-dur-<mins> in {60,90,120}, prefix-endinfo. Credentials unchanged: marc/julie/thomas/sophie/kevin/lea @padel.fr / password123. marc is Premium.",
+  "rca_of_issue": "N/A — no bugs found this iteration."
+}

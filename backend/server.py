@@ -10,6 +10,7 @@ import uuid
 import bcrypt
 import jwt
 import requests
+import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
@@ -26,6 +27,11 @@ EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 APP_NAME = "padelconnect"
+
+# ---- Emergent Push (SuprSend relay) ----
+PUSH_BASE_URL = "https://integrations.emergentagent.com"
+PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
+push_client = httpx.AsyncClient(base_url=PUSH_BASE_URL, headers={"X-Push-Key": PUSH_KEY}, timeout=10.0)
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -91,6 +97,7 @@ class UserPublic(BaseModel):
     reliability_avg: float
     reliability_count: int
     verified: bool = False
+    is_favorite: bool = False
     bio: Optional[str] = None
 
 class UserMe(UserPublic):
@@ -111,6 +118,7 @@ class ClubOut(BaseModel):
     image_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    price_per_hour: Optional[float] = None
     approved: bool
     announcements_count: int = 0
 
@@ -119,12 +127,19 @@ class ClubCreate(BaseModel):
     city: str = Field(min_length=2, max_length=60)
     region: str = Field(min_length=2, max_length=60)
     address: Optional[str] = None
+    price_per_hour: Optional[float] = Field(default=None, ge=0, le=200)
 
 class AnnouncementCreate(BaseModel):
     content: str = Field(min_length=1, max_length=500)
     availability: Optional[str] = None
-    party_size: int = Field(default=1, ge=1, le=4)  # rétrocompat (joueurs déjà réunis, organisateur inclus)
-    offline_names: List[str] = Field(default_factory=list)  # prénoms des joueurs hors-app déjà réunis (max 3)
+    match_date: Optional[str] = None  # ISO datetime de début du match
+    match_end_date: Optional[str] = None  # ISO datetime de fin du match
+    party_size: int = Field(default=1, ge=1, le=4)
+    offline_names: List[str] = Field(default_factory=list)
+
+class ReplayInput(BaseModel):
+    match_date: Optional[str] = None
+    match_end_date: Optional[str] = None
 
 class AnnouncementOut(BaseModel):
     id: str
@@ -133,6 +148,9 @@ class AnnouncementOut(BaseModel):
     author: UserPublic
     content: str
     availability: Optional[str] = None
+    match_date: Optional[str] = None
+    match_end_date: Optional[str] = None
+    status: str = "undated"  # upcoming | ongoing | past | undated
     created_at: str
     players: List[UserPublic] = []
     offline_players: List[str] = []
@@ -143,6 +161,8 @@ class AnnouncementOut(BaseModel):
     is_full: bool = False
     is_member: bool = False
     is_author: bool = False
+    can_rate: bool = False
+    has_rated: bool = False
 
 class MessageCreate(BaseModel):
     to_user_id: str
@@ -164,6 +184,18 @@ class ConversationOut(BaseModel):
 
 class RatingInput(BaseModel):
     stars: int = Field(ge=1, le=5)
+
+class RegisterPushBody(BaseModel):
+    user_id: str
+    platform: str  # "android" | "ios"
+    device_token: str
+
+class PlayerRating(BaseModel):
+    user_id: str
+    stars: int = Field(ge=1, le=5)
+
+class MatchRatingInput(BaseModel):
+    ratings: List[PlayerRating] = Field(default_factory=list)
 
 # ============ AUTH HELPERS ============
 def hash_pw(pw: str) -> str:
@@ -197,9 +229,12 @@ async def current_user(authorization: Optional[str] = Header(None)):
         raise HTTPException(401, "User not found")
     return user
 
-def user_public(u: dict) -> dict:
+def user_public(u: dict, viewer: Optional[dict] = None) -> dict:
     count = u.get("reliability_count", 0)
     avg = round(u.get("reliability_sum", 0) / count, 1) if count > 0 else 0.0
+    is_fav = False
+    if viewer:
+        is_fav = u["id"] in (viewer.get("favorites") or [])
     return {
         "id": u["id"],
         "pseudo": u.get("pseudo", ""),
@@ -208,8 +243,61 @@ def user_public(u: dict) -> dict:
         "reliability_avg": avg,
         "reliability_count": count,
         "verified": avg >= 4.5 and count >= 5,
+        "is_favorite": is_fav,
         "bio": u.get("bio"),
     }
+
+def match_status(match_date: Optional[str], match_end_date: Optional[str] = None) -> str:
+    if not match_date:
+        return "undated"
+    try:
+        dt = datetime.fromisoformat(match_date.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return "undated"
+    end = None
+    if match_end_date:
+        try:
+            end = datetime.fromisoformat(match_end_date.replace("Z", "+00:00"))
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+        except Exception:
+            end = None
+    if end is None:
+        end = dt + timedelta(hours=2)
+    now = datetime.now(timezone.utc)
+    if now < dt:
+        return "upcoming"
+    if dt <= now <= end:
+        return "ongoing"
+    return "past"
+
+# ============ PUSH NOTIFICATIONS (Emergent managed) ============
+async def send_push(recipients: List[str], data: dict, idempotency_key: Optional[str] = None) -> None:
+    if not recipients:
+        return
+    if "title" not in data or "message" not in data:
+        raise ValueError("data must include title and message")
+    payload: dict = {"recipients": recipients[:100], "data": data}
+    if idempotency_key:
+        payload["$idempotency_key"] = idempotency_key
+    resp = await push_client.post("/api/v1/push/trigger", json=payload)
+    if resp.status_code == 401:
+        raise HTTPException(500, "EMERGENT_PUSH_KEY missing or invalid")
+    if resp.status_code >= 500:
+        raise HTTPException(502, "Push provider unavailable")
+    resp.raise_for_status()
+
+@api_router.post("/register-push", status_code=201)
+async def register_push(body: RegisterPushBody):
+    resp = await push_client.post("/api/v1/push/users/register", json=body.model_dump())
+    if resp.status_code == 401:
+        raise HTTPException(500, "EMERGENT_PUSH_KEY missing or invalid")
+    if resp.status_code >= 500:
+        raise HTTPException(502, "Push provider unavailable")
+    resp.raise_for_status()
+    return {"status": "registered"}
 
 # ============ AUTH ROUTES ============
 @api_router.post("/auth/register")
@@ -271,12 +359,55 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
     return {**user_public(updated), "email": updated["email"]}
 
 # ============ USERS ============
+@api_router.get("/users/favorites")
+async def list_favorites(user=Depends(current_user)):
+    fav_ids = user.get("favorites") or []
+    out = []
+    for fid in fav_ids:
+        u = await db.users.find_one({"id": fid})
+        if u:
+            out.append(user_public(u, user))
+    return out
+
 @api_router.get("/users/{user_id}")
-async def get_user(user_id: str, _=Depends(current_user)):
+async def get_user(user_id: str, user=Depends(current_user)):
     u = await db.users.find_one({"id": user_id})
     if not u:
         raise HTTPException(404, "Utilisateur introuvable")
-    return user_public(u)
+    return user_public(u, user)
+
+@api_router.post("/users/{user_id}/favorite")
+async def toggle_favorite(user_id: str, user=Depends(current_user)):
+    if user_id == user["id"]:
+        raise HTTPException(400, "Impossible de s'ajouter en favori")
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    favorites = user.get("favorites") or []
+    if user_id in favorites:
+        favorites = [f for f in favorites if f != user_id]
+        is_fav = False
+    else:
+        favorites.append(user_id)
+        is_fav = True
+    await db.users.update_one({"id": user["id"]}, {"$set": {"favorites": favorites}})
+    return {"is_favorite": is_fav}
+
+async def apply_rating(from_id: str, to_id: str, stars: int):
+    existing = await db.ratings.find_one({"from_user": from_id, "to_user": to_id})
+    if existing:
+        delta = stars - existing["stars"]
+        await db.ratings.update_one({"_id": existing["_id"]}, {"$set": {"stars": stars}})
+        await db.users.update_one({"id": to_id}, {"$inc": {"reliability_sum": delta}})
+    else:
+        await db.ratings.insert_one({
+            "id": str(uuid.uuid4()),
+            "from_user": from_id,
+            "to_user": to_id,
+            "stars": stars,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await db.users.update_one({"id": to_id}, {"$inc": {"reliability_sum": stars, "reliability_count": 1}})
 
 @api_router.post("/users/{user_id}/rate")
 async def rate_user(user_id: str, body: RatingInput, user=Depends(current_user)):
@@ -285,22 +416,9 @@ async def rate_user(user_id: str, body: RatingInput, user=Depends(current_user))
     target = await db.users.find_one({"id": user_id})
     if not target:
         raise HTTPException(404, "Utilisateur introuvable")
-    existing = await db.ratings.find_one({"from_user": user["id"], "to_user": user_id})
-    if existing:
-        delta = body.stars - existing["stars"]
-        await db.ratings.update_one({"_id": existing["_id"]}, {"$set": {"stars": body.stars}})
-        await db.users.update_one({"id": user_id}, {"$inc": {"reliability_sum": delta}})
-    else:
-        await db.ratings.insert_one({
-            "id": str(uuid.uuid4()),
-            "from_user": user["id"],
-            "to_user": user_id,
-            "stars": body.stars,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        await db.users.update_one({"id": user_id}, {"$inc": {"reliability_sum": body.stars, "reliability_count": 1}})
+    await apply_rating(user["id"], user_id, body.stars)
     updated = await db.users.find_one({"id": user_id})
-    return user_public(updated)
+    return user_public(updated, user)
 
 # ============ CLUBS ============
 @api_router.get("/clubs")
@@ -344,6 +462,7 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
         "region": body.region,
         "address": body.address,
         "image_url": None,
+        "price_per_hour": body.price_per_hour,
         "approved": False,  # awaiting moderation, but list to author
         "suggested_by": user["id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -356,10 +475,10 @@ async def suggest_club(body: ClubCreate, user=Depends(current_user)):
 # ============ ANNOUNCEMENTS (Match requests per Club, 4 players) ============
 MAX_PLAYERS = 4
 
-async def serialize_announcement(a: dict, current_user_id: str, club: Optional[dict] = None) -> dict:
+async def serialize_announcement(a: dict, viewer: dict, club: Optional[dict] = None) -> dict:
+    current_user_id = viewer["id"]
     author = await db.users.find_one({"id": a["author_id"]})
     player_ids = a.get("players") or [a["author_id"]]
-    # offline players: prefer named list; fall back to legacy offline_count (unnamed)
     offline_names = a.get("offline_names")
     if offline_names is None:
         offline_names = ["" for _ in range(a.get("offline_count", 0))]
@@ -368,17 +487,26 @@ async def serialize_announcement(a: dict, current_user_id: str, club: Optional[d
     for pid in player_ids:
         pu = await db.users.find_one({"id": pid})
         if pu:
-            players.append(user_public(pu))
+            players.append(user_public(pu, viewer))
     total = len(players) + offline_count
     if club is None:
         club = await db.clubs.find_one({"id": a["club_id"]})
+    status = match_status(a.get("match_date"), a.get("match_end_date"))
+    rated_by = a.get("rated_by") or []
+    is_full = total >= MAX_PLAYERS
+    is_real_member = current_user_id in player_ids
+    other_real = len([p for p in player_ids if p != current_user_id])
+    can_rate = is_full and status == "past" and is_real_member and other_real > 0 and current_user_id not in rated_by
     return {
         "id": a["id"],
         "club_id": a["club_id"],
         "club_name": club["name"] if club else None,
-        "author": user_public(author) if author else None,
+        "author": user_public(author, viewer) if author else None,
         "content": a["content"],
         "availability": a.get("availability"),
+        "match_date": a.get("match_date"),
+        "match_end_date": a.get("match_end_date"),
+        "status": status,
         "created_at": a["created_at"],
         "players": players,
         "offline_players": offline_names,
@@ -386,9 +514,11 @@ async def serialize_announcement(a: dict, current_user_id: str, club: Optional[d
         "total_players": total,
         "max_players": MAX_PLAYERS,
         "slots_left": max(0, MAX_PLAYERS - total),
-        "is_full": total >= MAX_PLAYERS,
+        "is_full": is_full,
         "is_member": current_user_id in player_ids,
         "is_author": current_user_id == a["author_id"],
+        "can_rate": can_rate,
+        "has_rated": current_user_id in rated_by,
     }
 
 @api_router.get("/clubs/{club_id}/announcements")
@@ -399,20 +529,19 @@ async def list_announcements(club_id: str, user=Depends(current_user)):
     items = await db.announcements.find({"club_id": club_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
     out = []
     for a in items:
-        s = await serialize_announcement(a, user["id"], club)
+        s = await serialize_announcement(a, user, club)
         if s["author"]:
             out.append(s)
     return out
 
 @api_router.get("/matches/history")
 async def matches_history(user=Depends(current_user)):
-    # All matches where the current user is a participant (author or joined)
     items = await db.announcements.find(
         {"$or": [{"players": user["id"]}, {"author_id": user["id"]}]}, {"_id": 0}
     ).sort("created_at", -1).to_list(200)
     out = []
     for a in items:
-        s = await serialize_announcement(a, user["id"])
+        s = await serialize_announcement(a, user)
         if s["author"]:
             out.append(s)
     return out
@@ -422,7 +551,6 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
     club = await db.clubs.find_one({"id": club_id})
     if not club:
         raise HTTPException(404, "Club introuvable")
-    # Determine offline players (named preferred; fall back to party_size count)
     offline_names = [n.strip() for n in (body.offline_names or []) if n.strip()][:3]
     if not offline_names and body.party_size > 1:
         offline_names = ["" for _ in range(body.party_size - 1)]
@@ -435,12 +563,61 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
         "author_id": user["id"],
         "content": body.content,
         "availability": body.availability,
+        "match_date": body.match_date,
+        "match_end_date": body.match_end_date,
         "players": [user["id"]],
         "offline_names": offline_names,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.announcements.insert_one(ann)
-    return await serialize_announcement(ann, user["id"], club)
+    return await serialize_announcement(ann, user, club)
+
+@api_router.post("/announcements/{ann_id}/replay")
+async def replay_match(ann_id: str, body: ReplayInput, user=Depends(current_user)):
+    src = await db.announcements.find_one({"id": ann_id})
+    if not src:
+        raise HTTPException(404, "Match introuvable")
+    club = await db.clubs.find_one({"id": src["club_id"]})
+    players = src.get("players") or [src["author_id"]]
+    offline_names = src.get("offline_names")
+    if offline_names is None:
+        offline_names = ["" for _ in range(src.get("offline_count", 0))]
+    new_id = str(uuid.uuid4())
+    ann = {
+        "id": new_id,
+        "club_id": src["club_id"],
+        "author_id": user["id"],
+        "content": "🎾 On rejoue ensemble ? Même équipe pour un nouveau match !",
+        "availability": None,
+        "match_date": body.match_date,
+        "match_end_date": body.match_end_date,
+        "players": players,  # same registered players
+        "offline_names": offline_names,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.announcements.insert_one(ann)
+    # Invite each registered co-player via a private message
+    when = ""
+    if body.match_date:
+        try:
+            dt = datetime.fromisoformat(body.match_date.replace("Z", "+00:00"))
+            when = f" le {dt.strftime('%d/%m à %Hh%M')}"
+        except Exception:
+            when = ""
+    club_name = club["name"] if club else "notre club"
+    for pid in players:
+        if pid == user["id"]:
+            continue
+        await db.messages.insert_one({
+            "id": str(uuid.uuid4()),
+            "conv_id": conv_id(user["id"], pid),
+            "from_user_id": user["id"],
+            "to_user_id": pid,
+            "content": f"🎾 {user['pseudo']} propose de rejouer{when} à {club_name} !",
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    return await serialize_announcement(ann, user, club)
 
 @api_router.post("/announcements/{ann_id}/join")
 async def join_announcement(ann_id: str, user=Depends(current_user)):
@@ -451,13 +628,30 @@ async def join_announcement(ann_id: str, user=Depends(current_user)):
     offline_names = ann.get("offline_names")
     offline_count = len(offline_names) if offline_names is not None else ann.get("offline_count", 0)
     if user["id"] in players:
-        return await serialize_announcement(ann, user["id"])
+        return await serialize_announcement(ann, user)
     if len(players) + offline_count >= MAX_PLAYERS:
         raise HTTPException(409, "Match complet (4 joueurs)")
     players.append(user["id"])
     await db.announcements.update_one({"id": ann_id}, {"$set": {"players": players}})
     ann["players"] = players
-    return await serialize_announcement(ann, user["id"])
+    # Notify the organizer when the match becomes full (4/4)
+    now_total = len(players) + offline_count
+    if now_total >= MAX_PLAYERS and ann["author_id"] != user["id"]:
+        club = await db.clubs.find_one({"id": ann["club_id"]})
+        club_name = club["name"] if club else "ton club"
+        try:
+            await send_push(
+                recipients=[ann["author_id"]],
+                data={
+                    "title": "Match complet ! 🎾",
+                    "message": f"{user['pseudo']} a rejoint : ton match à {club_name} est au complet (4/4).",
+                    "action_url": f"/club/{ann['club_id']}",
+                },
+                idempotency_key=f"match-full-{ann_id}",
+            )
+        except Exception as e:
+            logger.warning(f"Push failed (non-blocking): {e}")
+    return await serialize_announcement(ann, user)
 
 @api_router.post("/announcements/{ann_id}/leave")
 async def leave_announcement(ann_id: str, user=Depends(current_user)):
@@ -469,7 +663,28 @@ async def leave_announcement(ann_id: str, user=Depends(current_user)):
     players = [p for p in (ann.get("players") or [ann["author_id"]]) if p != user["id"]]
     await db.announcements.update_one({"id": ann_id}, {"$set": {"players": players}})
     ann["players"] = players
-    return await serialize_announcement(ann, user["id"])
+    return await serialize_announcement(ann, user)
+
+@api_router.post("/announcements/{ann_id}/rate")
+async def rate_match(ann_id: str, body: MatchRatingInput, user=Depends(current_user)):
+    ann = await db.announcements.find_one({"id": ann_id})
+    if not ann:
+        raise HTTPException(404, "Match introuvable")
+    players = ann.get("players") or [ann["author_id"]]
+    if user["id"] not in players:
+        raise HTTPException(403, "Tu n'as pas participé à ce match")
+    for r in body.ratings:
+        if r.user_id == user["id"] or r.user_id not in players:
+            continue
+        if not await db.users.find_one({"id": r.user_id}):
+            continue
+        await apply_rating(user["id"], r.user_id, r.stars)
+    rated_by = ann.get("rated_by") or []
+    if user["id"] not in rated_by:
+        rated_by.append(user["id"])
+    await db.announcements.update_one({"id": ann_id}, {"$set": {"rated_by": rated_by}})
+    ann["rated_by"] = rated_by
+    return await serialize_announcement(ann, user)
 
 # ============ MESSAGES (Private DM) ============
 def conv_id(a: str, b: str) -> str:
@@ -604,6 +819,20 @@ async def on_startup():
         if club["name"] in coord_map:
             lat, lng = coord_map[club["name"]]
             await db.clubs.update_one({"id": club["id"]}, {"$set": {"latitude": lat, "longitude": lng}})
+
+    # backfill court prices (€/heure/terrain) on clubs missing a price
+    PRICE_MAP = {
+        "Padel Horizon Paris": 40, "Club Padel Lyon Est": 32, "Marseille Padel Beach": 34,
+        "Padel Toulouse Sud": 28, "Bordeaux Padel Arena": 30, "Nice Padel Club": 36,
+        "Padel Nantes Erdre": 26, "Strasbourg Padel": 28, "Lille Padel Nord": 30,
+        "Rennes Padel Ouest": 26, "Montpellier Padel Sud": 30, "Padel Grenoble Alpes": 28,
+    }
+    async for club in db.clubs.find({"price_per_hour": {"$in": [None, ]}}):
+        if club["name"] in PRICE_MAP:
+            await db.clubs.update_one({"id": club["id"]}, {"$set": {"price_per_hour": PRICE_MAP[club["name"]]}})
+    async for club in db.clubs.find({"price_per_hour": {"$exists": False}}):
+        if club["name"] in PRICE_MAP:
+            await db.clubs.update_one({"id": club["id"]}, {"$set": {"price_per_hour": PRICE_MAP[club["name"]]}})
 
     # seed demo users
     AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"
