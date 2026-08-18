@@ -1186,7 +1186,7 @@ async def get_file(path: str):
 # Real, well-known French padel clubs (addresses & prices to be confirmed via admin).
 IMG_A = "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?crop=entropy&cs=srgb&fm=jpg&q=85&w=800"
 IMG_B = "https://images.pexels.com/photos/31012869/pexels-photo-31012869.jpeg?auto=compress&cs=tinysrgb&w=800"
-REAL_CLUBS = [
+_OLD_SEED_CLUBS = [
     {"name": "Casa Padel", "city": "Saint-Denis", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9362, "longitude": 2.3574, "image_url": IMG_A},
     {"name": "4PADEL Aubervilliers", "city": "Aubervilliers", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9146, "longitude": 2.3844, "image_url": IMG_B},
     {"name": "Padel Attitude", "city": "Chambourcy", "region": "Île-de-France", "address": "Adresse à confirmer", "latitude": 48.9070, "longitude": 2.0430, "image_url": IMG_A},
@@ -1238,6 +1238,11 @@ REAL_CLUBS = [
     {"name": "Ajaccio Padel Club", "city": "Ajaccio", "region": "Corse", "address": "Adresse à confirmer", "latitude": 41.9192, "longitude": 8.7386, "image_url": IMG_B},
 ]
 
+# Real French clubs (387) imported from clubs_fr.json — source of truth for seeding
+import json as _json
+with open(ROOT_DIR / "clubs_fr.json", encoding="utf-8") as _f:
+    REAL_CLUBS = _json.load(_f)
+
 @app.on_event("startup")
 async def on_startup():
     await db.users.create_index("email", unique=True)
@@ -1246,27 +1251,47 @@ async def on_startup():
     await db.messages.create_index("conv_id")
     await db.messages.create_index([("from_user_id", 1), ("to_user_id", 1)])
 
-    # Seed real clubs (idempotent by name); price left as None → "Tarif à confirmer"
+    # One-time migration: replace legacy placeholder clubs (no source_id) with the real import.
+    # A legacy club is kept only if it has a REAL match (a match_date set or players joined);
+    # otherwise the club and its demo announcements are removed.
+    if not await db.meta.find_one({"_id": "clubs_import_v2"}):
+        legacy = await db.clubs.find({"source_id": {"$exists": False}}, {"id": 1}).to_list(2000)
+        removed = 0
+        for lc in legacy:
+            real = await db.announcements.count_documents({
+                "club_id": lc["id"],
+                "$or": [
+                    {"match_date": {"$nin": [None, ""]}},
+                    {"players.0": {"$exists": True}},
+                ],
+            })
+            if real == 0:
+                await db.announcements.delete_many({"club_id": lc["id"]})
+                await db.clubs.delete_one({"id": lc["id"]})
+                removed += 1
+        await db.meta.insert_one({
+            "_id": "clubs_import_v2",
+            "removed": removed,
+            "at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info(f"Clubs import v2: removed {removed} legacy placeholder clubs")
+
+    # Seed real French clubs (idempotent by source_id); price stays None → "Tarif à confirmer"
+    seeded = 0
     for c in REAL_CLUBS:
-        if not await db.clubs.find_one({"name": c["name"]}):
+        if not await db.clubs.find_one({"source_id": c["source_id"]}):
             await db.clubs.insert_one({
                 "id": str(uuid.uuid4()),
                 "approved": True,
                 "price_per_hour": None,
-                "is_outdoor": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 **c,
             })
-    logger.info("Ensured real clubs seeded")
+            seeded += 1
+    logger.info(f"Ensured real clubs seeded ({len(REAL_CLUBS)} total, {seeded} new)")
 
     # Ensure every club has an is_outdoor flag (default: indoor)
     await db.clubs.update_many({"is_outdoor": {"$exists": False}}, {"$set": {"is_outdoor": False}})
-    # Mark a couple of demo outdoor clubs so weather is visible (only until an admin sets any)
-    if await db.clubs.count_documents({"is_outdoor": True}) == 0:
-        await db.clubs.update_many(
-            {"name": {"$in": ["Padel Riviera", "Winners Padel"]}},
-            {"$set": {"is_outdoor": True}},
-        )
 
     # seed demo users
     AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"
