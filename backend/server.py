@@ -1205,12 +1205,6 @@ REAL_CLUBS = [
     {"name": "Urban Padel Lille", "city": "Lille", "region": "Hauts-de-France", "address": "Adresse à confirmer", "latitude": 50.6292, "longitude": 3.0573, "image_url": IMG_B},
 ]
 
-OLD_DEMO_NAMES = [
-    "Padel Horizon Paris", "Club Padel Lyon Est", "Marseille Padel Beach", "Padel Toulouse Sud",
-    "Bordeaux Padel Arena", "Nice Padel Club", "Padel Nantes Erdre", "Strasbourg Padel",
-    "Lille Padel Nord", "Rennes Padel Ouest", "Montpellier Padel Sud", "Padel Grenoble Alpes",
-]
-
 @app.on_event("startup")
 async def on_startup():
     await db.users.create_index("email", unique=True)
@@ -1218,14 +1212,6 @@ async def on_startup():
     await db.clubs.create_index("id", unique=True)
     await db.messages.create_index("conv_id")
     await db.messages.create_index([("from_user_id", 1), ("to_user_id", 1)])
-
-    # Remove old placeholder/demo clubs (and their demo announcements)
-    demo = await db.clubs.find({"name": {"$in": OLD_DEMO_NAMES}}).to_list(100)
-    if demo:
-        demo_ids = [c["id"] for c in demo]
-        await db.clubs.delete_many({"id": {"$in": demo_ids}})
-        await db.announcements.delete_many({"club_id": {"$in": demo_ids}})
-        logger.info(f"Removed {len(demo_ids)} old demo clubs")
 
     # Seed real clubs (idempotent by name); price left as None → "Tarif à confirmer"
     for c in REAL_CLUBS:
