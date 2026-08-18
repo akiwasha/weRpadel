@@ -36,18 +36,18 @@ type Match = {
 const LEVEL_FILTERS = ["Tous", ...LEVELS];
 
 function dateChips() {
-  const mk = (offset: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + offset);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T12:00:00`;
-    return iso;
-  };
-  return [
-    { key: "", label: "Toutes dates" },
-    { key: mk(0), label: "Aujourd'hui" },
-    { key: mk(1), label: "Demain" },
-    { key: mk(2), label: "Après-demain" },
-  ];
+  const DOW = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+  const mk = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T12:00:00`;
+  const out: { key: string; label: string }[] = [{ key: "", label: "Toutes dates" }];
+  const today = new Date();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const label = i === 0 ? "Auj." : i === 1 ? "Dem." : `${DOW[d.getDay()]} ${d.getDate()}`;
+    out.push({ key: mk(d), label });
+  }
+  return out;
 }
 
 export default function SearchMatches() {
