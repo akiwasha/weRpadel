@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -7,6 +7,7 @@ import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { fullUrl, api } from "@/src/lib/api";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { SUPPORT_EMAIL } from "@/src/lib/legal";
 import { VerifiedPill } from "@/src/components/VerifiedBadge";
 
 function StarRow({ value }: { value: number }) {
@@ -190,6 +191,20 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
+        <View style={styles.legalCard}>
+          <Pressable testID="privacy-link" onPress={() => router.push("/privacy")} style={styles.legalRow}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.onSurfaceSecondary} />
+            <Text style={styles.legalText}>Politique de confidentialité</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
+          </Pressable>
+          <View style={styles.legalDivider} />
+          <Pressable testID="contact-link" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} style={styles.legalRow}>
+            <Ionicons name="help-buoy-outline" size={20} color={colors.onSurfaceSecondary} />
+            <Text style={styles.legalText}>Contact & support</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
+          </Pressable>
+        </View>
+
         <Pressable
           testID="signout-btn"
           onPress={async () => { await signOut(); router.replace("/(auth)/sign-in"); }}
@@ -273,6 +288,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.infoMuted, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.md,
   },
   adminLinkText: { flex: 1, color: colors.onInfoMuted, fontWeight: "800", fontSize: type.base },
+  legalCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, marginTop: spacing.md, overflow: "hidden" },
+  legalRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 14, minHeight: 48 },
+  legalText: { flex: 1, color: colors.onSurface, fontWeight: "700", fontSize: type.base },
+  legalDivider: { height: 1, backgroundColor: colors.divider, marginLeft: spacing.lg },
   deleteAccount: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 12, marginTop: spacing.xs,

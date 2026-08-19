@@ -142,6 +142,7 @@ function AuthGate() {
       <Stack.Screen name="manage-subscription" options={{ presentation: "modal" }} />
       <Stack.Screen name="matches" />
       <Stack.Screen name="favorites" />
+      <Stack.Screen name="privacy" />
     </Stack>
   );
 }
