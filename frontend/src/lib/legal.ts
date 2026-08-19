@@ -3,8 +3,8 @@
 export const SUPPORT_EMAIL = "contact@werpadel.app";
 export const ORG_NAME = "weRpadel";
 export const PRIVACY_LAST_UPDATED = "Juin 2026";
-// URL publique de la politique (à renseigner aussi dans App Store Connect). Optionnel côté app.
-export const PRIVACY_POLICY_URL = "";
+// URL publique de la politique (à renseigner aussi dans App Store Connect).
+export const PRIVACY_POLICY_URL = "https://sites.google.com/view/werpadel-confidentialite/accueil";
 
 export const PRIVACY_POLICY = `Dernière mise à jour : ${PRIVACY_LAST_UPDATED}
 

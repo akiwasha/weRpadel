@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
-import { PRIVACY_POLICY, SUPPORT_EMAIL } from "@/src/lib/legal";
+import { PRIVACY_POLICY, SUPPORT_EMAIL, PRIVACY_POLICY_URL } from "@/src/lib/legal";
 
 export default function PrivacyScreen() {
   const router = useRouter();
@@ -18,6 +18,16 @@ export default function PrivacyScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.body}>{PRIVACY_POLICY}</Text>
+        {!!PRIVACY_POLICY_URL && (
+          <Pressable
+            testID="privacy-online"
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            style={styles.onlineBtn}
+          >
+            <Ionicons name="open-outline" size={16} color={colors.info} />
+            <Text style={styles.onlineText}>Voir la version en ligne</Text>
+          </Pressable>
+        )}
         <Pressable
           testID="privacy-contact"
           onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
@@ -47,4 +57,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 13, minHeight: 44,
   },
   contactText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  onlineBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 6 },
+  onlineText: { color: colors.info, fontWeight: "700", fontSize: type.sm, textDecorationLine: "underline" },
 });
