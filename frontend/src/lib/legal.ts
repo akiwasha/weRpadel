@@ -1,6 +1,6 @@
 // Legal / support configuration.
 // ⚠️ À PERSONNALISER : remplacez ces valeurs par vos informations réelles.
-export const SUPPORT_EMAIL = "contact@werpadel.app";
+export const SUPPORT_EMAIL = "bigzenprod@gmail.com";
 export const ORG_NAME = "weRpadel";
 export const PRIVACY_LAST_UPDATED = "Juin 2026";
 // URL publique de la politique (à renseigner aussi dans App Store Connect).
