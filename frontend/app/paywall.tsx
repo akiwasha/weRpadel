@@ -99,10 +99,10 @@ export default function Paywall() {
         ) : (
           <>
             <View style={styles.priceCard}>
-              <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>2 MOIS OFFERTS 🎁</Text></View>
+              <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>3 MOIS OFFERTS 🎁</Text></View>
               <Text style={styles.priceLabel}>Abonnement annuel</Text>
               <Text style={styles.priceValue}>{price}<Text style={styles.pricePeriod}> / an</Text></Text>
-              <Text style={styles.trialLine}>Les 2 premiers mois offerts — soit 14 mois pour ton 1er abonnement</Text>
+              <Text style={styles.trialLine}>Les 3 premiers mois offerts — soit 15 mois pour ton 1er abonnement</Text>
               <Text style={styles.priceHint}>Puis renouvellement automatique chaque année · Résiliable à tout moment</Text>
             </View>
 
@@ -117,7 +117,7 @@ export default function Paywall() {
               {isPurchasing ? (
                 <ActivityIndicator color={colors.onBrandPrimary} />
               ) : (
-                <Text style={styles.subscribeText}>Commencer — 2 mois offerts</Text>
+                <Text style={styles.subscribeText}>Commencer — 3 mois offerts</Text>
               )}
             </Pressable>
 

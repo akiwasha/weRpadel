@@ -9,13 +9,13 @@ This file serves as memory for interacting with the user's RevenueCat account vi
 - offering_lookup_key: default
 - bundle_id / package_name: com.emergent.padelplay.y9om9x
 - Packages (package -> product_id, current price):
-  - $rc_annual -> prod85a49e74a9   (€9.90 / P1Y, trial: P2M — 2 mois offerts)  ← ACTIVE, user's only plan
+  - $rc_annual -> prod85a49e74a9   (€9.90 / P1Y, trial: P3M — 3 mois offerts, promo lancement 2026)  ← ACTIVE, user's only plan
   - $rc_monthly -> REMOVED (deleted per user request; only yearly offered)
 - Dashboard: https://app.revenuecat.com/projects/proj71049a4c
 
 ## Model
 - Freemium: browsing clubs is FREE. Sending private messages + posting club announcements require the `pro` entitlement.
-- Free trial: 2 months (P2M) on the annual plan → 14 months for the 1st subscription. Price €9.90/year, auto-renewable.
+- Free trial: 3 months (P3M) on the annual plan → 15 months for the 1st subscription (launch promo 2026; was P2M). Price €9.90/year, auto-renewable. To revert after launch: POST /products with trial "P2M" (or omit for none).
 
 ## Status check
 curl -sS -H "$AUTH" "$INTEGRATION_PROXY_URL/internal/revenuecat/projects/63d9d193-c3b4-4373-9c9c-869f7996f638/status"
