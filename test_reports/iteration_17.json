@@ -1,0 +1,38 @@
+{
+  "summary": "Itération 17 — Régression post-upgrade Expo SDK 54 → 57 (RN 0.86 / React 19.2 / expo-router 57). Backend 9/9 pytest OK (iter17) + 7/7 iter16 OK. Frontend Playwright (390x844, mobile) OK sur TOUS les flows critiques : login marc@padel.fr → onglet Clubs (31 cartes seedées, recherche 'Casa' → 3 cartes, chips régions visibles) ; bascule Liste/Carte → fallback ClubsMap.web.tsx s'affiche correctement avec bandeau 'La carte interactive s'affiche sur l'app mobile (Expo Go)' + liste des clubs (map-list-* visibles), AUCUN écran blanc ni crash ; ouverture club Casa Padel Saint-Denis (/club/0222bf81-...) → page club rend header image + overlay LinearGradient avec StyleSheet.absoluteFill, 29 images détectées, 960 chars de texte, tabs Annonces/Infos visibles, paywall card et bouton 'Abonne-toi pour poster une annonce' affichés — pas de régression de StyleSheet.absoluteFill (ex-absoluteFillObject) ; navigation back → retour à /clubs OK ; onglet Rechercher : search-input présent, filtre Confirmé → 2 cartes TEST_iter16_*, chips Tous/Débutant/Intermédiaire/Confirmé/Expert + chips dates + chips régions + 'Trier par distance' tous rendus ; onglet Messages : 3 conversations (SophiePad, ThomasR, JulieSmash), ouverture chat/fc0f7ee5-... OK ; onglet Profil : my-pseudo='MarcPadel', badge Confirmé, Fiabilité 4.5/5, cards 'Abonne-toi' + 'Mes matchs' + 'Fiabilité' + 'Bio' rendus ; routes stack /favorites, /privacy, /matches, /edit-profile, /paywall toutes chargent sans red screen et sans crash. ZERO page error, ZERO crash, ZERO 'undefined is not an object'. Console errors capturés sont uniquement : 404 images (favicon/Cloudinary — ignoré par review note) et ERR_NAME_NOT_RESOLVED (expo-notifications / RevenueCat telemetry sur web — ignoré par review note). AUCUN warning de dépréciation bloquant détecté suite à l'upgrade SDK 57.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/clubs/nearest", "issue": "Param attendu 'q' (pas 'city'). Non bloquant, le frontend l'utilise correctement — note de doc interne."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/backend/tests/test_iteration16.py",
+    "/app/test_reports/pytest/iter17_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StyleSheet.absoluteFill (RN 0.86) remplace bien absoluteFillObject dans index.tsx(276), club/[id].tsx(132,135,696) et ClubsMap.tsx(62) — vérifié visuellement : header image + gradient remplissent correctement la zone sur club detail.",
+    "app.json : newArchEnabled et edgeToEdgeEnabled correctement retirés (défauts SDK 57). experiments.typedRoutes:true toujours actif, pas de régression du routing.",
+    "ClubsMap.web.tsx fallback web : affiche un bandeau d'info + liste pressable des clubs — bon UX car react-native-maps 1.27 ne rend pas sur web. Conforme.",
+    "Console web montre 'Web platform detected. Using RevenueCat in Browser Mode.' et '[expo-notifications] Listening to push token changes is not yet fully supported on web' — attendus et non bloquants sur web preview."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/test_reports/iteration_17.json",
+    "/app/test_reports/pytest/iter17_results.xml"
+  ],
+  "success_rate": {"backend": "100% (9/9 iter17 + 7/7 iter16)", "frontend": "100% (tous les flows du review request validés)"},
+  "seed_data_creation": "Aucune donnée créée dans iter17. Deux annonces TEST_iter16_* (4f9f1e, 62cbc0) encore présentes sur Casa Padel Saint-Denis (restes iter16, nettoyage DELETE endpoint absent côté API, non bloquant pour les tests). julie.city='Lyon', julie.preferred_region reset. marc.city vidé en fin de iter16 (puis test iter17 n'a pas remodifié).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "SDK 57 upgrade stable. testIDs confirmés : signin-email-input/signin-password-input/signin-submit-button (sign-in) ; clubs-search-input, region-chip-all, region-chip-<Region> (ATTENTION : les régions avec caractères spéciaux comme 'Île-de-France' nécessitent escape CSS pour les sélecteurs Playwright — utiliser get_by_test_id plutôt que [data-testid=...]), view-list-btn/view-map-btn, club-card-<id> (31 cartes seedées) ; search-input, filter-level-<Lv>, filter-region-<R>, filter-date-<Label>, sort-distance-toggle, search-match-<id>, search-join-<id> ; conv-<user_id> ; my-pseudo, favorites-btn, edit-profile-btn, premium-card, my-matches-card, signout-btn, delete-account-btn. Endpoints : /health (sans /api), /api/auth/login, /api/auth/me (GET+PUT), /api/clubs, /api/clubs/nearest?q=<city>, /api/matches/open[?sort=distance], /api/clubs/{id}/announcements. Pas de red screen ni crash sur /matches, /paywall, /edit-profile, /favorites, /privacy, /club/[id], /chat/[id].",
+  "rca_of_issue": "N/A — régression post-upgrade SDK 57 réussie. Tous les critères du review_request sont satisfaits. Les modifications absoluteFillObject → absoluteFill, suppression newArchEnabled/edgeToEdgeEnabled dans app.json, typage matches.tsx n'ont introduit aucune régression visible ni runtime."
+}
