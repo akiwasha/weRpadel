@@ -12,6 +12,7 @@ import jwt
 import requests
 import httpx
 import asyncio
+import secrets
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
@@ -24,6 +25,8 @@ except Exception:
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+from email_service import send_email, password_reset_html, EMAIL_FROM_NAME  # noqa: E402
 
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
@@ -103,6 +106,14 @@ class RegisterInput(BaseModel):
 class LoginInput(BaseModel):
     email: EmailStr
     password: str
+
+class ForgotPasswordInput(BaseModel):
+    email: EmailStr
+
+class ResetPasswordInput(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
+    new_password: str = Field(min_length=6)
 
 class UserPublic(BaseModel):
     id: str
@@ -536,6 +547,58 @@ async def login(body: LoginInput):
     user = await db.users.find_one({"email": body.email.lower()})
     if not user or not check_pw(body.password, user["password_hash"]):
         raise HTTPException(401, "Email ou mot de passe incorrect")
+    token = make_token(user["id"])
+    return {"token": token, "user": user_me(user)}
+
+RESET_CODE_TTL_MIN = 15
+RESET_MAX_REQUESTS = 3  # per email per TTL window
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordInput):
+    """Always 200 (no account enumeration). Emails a 6-digit code valid 15 min."""
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email})
+    if not user:
+        return {"ok": True}
+    now = datetime.now(timezone.utc)
+    window_start = (now - timedelta(minutes=RESET_CODE_TTL_MIN)).isoformat()
+    recent = await db.password_resets.count_documents({"email": email, "created_at": {"$gte": window_start}})
+    if recent >= RESET_MAX_REQUESTS:
+        raise HTTPException(429, "Trop de demandes. Réessaie dans quelques minutes.")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    await db.password_resets.insert_one({
+        "email": email,
+        "code_hash": hash_pw(code),
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=RESET_CODE_TTL_MIN)).isoformat(),
+        "attempts": 0,
+        "used": False,
+    })
+    await send_email(
+        to=email,
+        subject=f"{EMAIL_FROM_NAME} — ton code de réinitialisation",
+        html=password_reset_html(user["pseudo"], code),
+    )
+    return {"ok": True}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordInput):
+    email = body.email.lower()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    reset = await db.password_resets.find_one(
+        {"email": email, "used": False, "expires_at": {"$gt": now_iso}},
+        sort=[("created_at", -1)],
+    )
+    if not reset or reset.get("attempts", 0) >= 5:
+        raise HTTPException(400, "Code invalide ou expiré. Redemande un code.")
+    if not check_pw(body.code.strip(), reset["code_hash"]):
+        await db.password_resets.update_one({"_id": reset["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(400, "Code incorrect")
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(400, "Code invalide ou expiré. Redemande un code.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_pw(body.new_password)}})
+    await db.password_resets.update_many({"email": email}, {"$set": {"used": True}})
     token = make_token(user["id"])
     return {"token": token, "user": user_me(user)}
 
@@ -1256,15 +1319,19 @@ async def on_startup():
     # admin action: POST /api/admin/cleanup-legacy-clubs.
     seeded = 0
     for c in REAL_CLUBS:
-        if not await db.clubs.find_one({"source_id": c["source_id"]}):
-            await db.clubs.insert_one({
-                "id": str(uuid.uuid4()),
-                "approved": True,
-                "price_per_hour": None,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                **c,
-            })
-            seeded += 1
+        existing = await db.clubs.find_one({"source_id": c["source_id"]}, {"_id": 0, "address": 1})
+        if existing:
+            if existing.get("address") == "Adresse à confirmer" and c["address"] != "Adresse à confirmer":
+                await db.clubs.update_one({"source_id": c["source_id"]}, {"$set": {"address": c["address"], "postal_code": c.get("postal_code")}})
+            continue
+        await db.clubs.insert_one({
+            "id": str(uuid.uuid4()),
+            "approved": True,
+            "price_per_hour": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            **c,
+        })
+        seeded += 1
     logger.info(f"Ensured real clubs seeded ({len(REAL_CLUBS)} total, {seeded} new)")
 
     # Ensure every club has an is_outdoor flag (default: indoor)

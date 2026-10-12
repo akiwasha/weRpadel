@@ -117,3 +117,8 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - Projet migré de SDK 54 → SDK 57 (RN 0.86.3, React 19.2.3, expo-router 57, reanimated 4.5, maps 1.27) car Expo Go sur l'App Store est passé au SDK 57 (erreur 'Project is incompatible with this version of Expo Go').
 - Correctifs: StyleSheet.absoluteFillObject → absoluteFill (retiré dans RN 0.86); app.json: suppression newArchEnabled / android.edgeToEdgeEnabled (défaut).
 - Régression complète validée (test_reports/iteration_17.json). L'utilisateur doit **Republier** (Publish) pour que le QR code de déploiement serve la version SDK 57.
+
+## Mot de passe oublié + nouveaux clubs (Oct 2026)
+- POST /api/auth/forgot-password (toujours 200, code 6 chiffres bcrypt-hashé, 15 min, max 3 demandes/15 min) et POST /api/auth/reset-password (5 essais max, code à usage unique) — email via Emergent managed Resend (`backend/email_service.py`, EMAIL_FROM_NAME=weRpadel, Reply-To bigzenprod@gmail.com).
+- Écran `app/(auth)/forgot-password.tsx` (2 étapes) + lien « Mot de passe oublié ? » sur sign-in. Auto-connexion après reset.
+- Clubs : ajout 4PADEL Boulogne-Billancourt (1 Rue Victor Griffuelhes) ; adresses réelles pour Forest Hill Aquaboulevard et Forest Hill La Marche Marnes-la-Coquette ; le seed met désormais à jour les adresses « Adresse à confirmer » depuis clubs_fr.json.

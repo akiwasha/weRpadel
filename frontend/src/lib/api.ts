@@ -36,6 +36,10 @@ export const api = {
   }) => request("/auth/register", { method: "POST", body: JSON.stringify(payload) }, false),
   login: (email: string, password: string) =>
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
+  forgotPassword: (email: string) =>
+    request("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }, false),
+  resetPassword: (email: string, code: string, new_password: string) =>
+    request("/auth/reset-password", { method: "POST", body: JSON.stringify({ email, code, new_password }) }, false),
   me: () => request("/auth/me"),
   updateMe: (body: any) => request("/auth/me", { method: "PUT", body: JSON.stringify(body) }),
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),

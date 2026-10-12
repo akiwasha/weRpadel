@@ -60,6 +60,11 @@ export default function SignIn() {
               secureTextEntry
             />
             {err && <Text style={styles.error} testID="signin-error">{err}</Text>}
+            <Link href="/(auth)/forgot-password" asChild>
+              <Pressable testID="signin-forgot-password" style={styles.forgotWrap} hitSlop={8}>
+                <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+              </Pressable>
+            </Link>
             <Pressable
               testID="signin-submit-button"
               style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
@@ -104,6 +109,8 @@ const styles = StyleSheet.create({
   },
   btnText: { color: colors.onBrandPrimary, fontSize: type.lg, fontWeight: "800" },
   linkWrap: { alignItems: "center", paddingVertical: spacing.lg },
+  forgotWrap: { alignSelf: "flex-end", paddingVertical: spacing.xs, minHeight: 44, justifyContent: "center" },
+  forgotText: { color: colors.brandPrimary, fontSize: type.base, fontWeight: "600" },
   linkText: { color: colors.onSurfaceSecondary, fontSize: type.base },
   error: { color: colors.error, fontSize: type.base, textAlign: "center", marginTop: spacing.sm },
 });
