@@ -9,7 +9,11 @@ This file serves as memory for interacting with the user's RevenueCat account vi
 - offering_lookup_key: default
 - bundle_id / package_name: com.emergent.padelplay.y9om9x
 - Packages (package -> product_id, current price):
-  - $rc_annual -> prod85a49e74a9   (€9.90 / P1Y, trial: P3M — 3 mois offerts, promo lancement 2026)  ← ACTIVE, user's only plan
+  - $rc_annual -> prod85a49e74a9 (RevenueCat internal id). STORE identifiers (what the user must create in the stores, seen in RC dashboard 2026-10-12):
+      Apple App Store product id: `pro.annual`
+      Google Play: product id `pro.annual`, base plan id `annual` (shown as pro.annual:annual)
+      Test Store: pro.annual
+    (€9.90 / P1Y, trial: P3M — 3 mois offerts, promo lancement 2026)  ← ACTIVE, user's only plan
   - $rc_monthly -> REMOVED (deleted per user request; only yearly offered)
 - Dashboard: https://app.revenuecat.com/projects/proj71049a4c
 
