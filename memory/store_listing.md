@@ -27,7 +27,7 @@ Créez ou rejoignez des matchs à 4 joueurs dans les clubs près de chez vous, d
 • Historique & relance : retrouvez vos matchs passés et reproposez la même partie la semaine suivante.
 
 💎 weRpadel PREMIUM
-Passez Premium pour rejoindre des matchs en illimité et profiter de toutes les fonctionnalités. Abonnement avec essai gratuit de 2 mois sur la formule annuelle.
+Passez Premium pour rejoindre des matchs en illimité et profiter de toutes les fonctionnalités. Abonnement avec essai gratuit de 3 mois sur la formule annuelle.
 - L'abonnement se renouvelle automatiquement, sauf annulation au moins 24h avant la fin de la période en cours.
 - La gestion et l'annulation se font dans les réglages de votre compte App Store / Google Play.
 
