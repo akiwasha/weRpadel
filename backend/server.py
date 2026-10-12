@@ -1251,32 +1251,9 @@ async def on_startup():
     await db.messages.create_index("conv_id")
     await db.messages.create_index([("from_user_id", 1), ("to_user_id", 1)])
 
-    # One-time migration: replace legacy placeholder clubs (no source_id) with the real import.
-    # A legacy club is kept only if it has a REAL match (a match_date set or players joined);
-    # otherwise the club and its demo announcements are removed.
-    if not await db.meta.find_one({"_id": "clubs_import_v2"}):
-        legacy = await db.clubs.find({"source_id": {"$exists": False}}, {"id": 1}).to_list(2000)
-        removed = 0
-        for lc in legacy:
-            real = await db.announcements.count_documents({
-                "club_id": lc["id"],
-                "$or": [
-                    {"match_date": {"$nin": [None, ""]}},
-                    {"players.0": {"$exists": True}},
-                ],
-            })
-            if real == 0:
-                await db.announcements.delete_many({"club_id": lc["id"]})
-                await db.clubs.delete_one({"id": lc["id"]})
-                removed += 1
-        await db.meta.insert_one({
-            "_id": "clubs_import_v2",
-            "removed": removed,
-            "at": datetime.now(timezone.utc).isoformat(),
-        })
-        logger.info(f"Clubs import v2: removed {removed} legacy placeholder clubs")
-
     # Seed real French clubs (idempotent by source_id); price stays None → "Tarif à confirmer"
+    # NOTE: no destructive operations here. Legacy placeholder cleanup is an explicit
+    # admin action: POST /api/admin/cleanup-legacy-clubs.
     seeded = 0
     for c in REAL_CLUBS:
         if not await db.clubs.find_one({"source_id": c["source_id"]}):
@@ -1361,11 +1338,38 @@ async def on_startup():
     # start the match reminder scheduler (24h + 2h before start)
     asyncio.create_task(reminder_loop())
 
+@api_router.post("/admin/cleanup-legacy-clubs")
+async def cleanup_legacy_clubs(user=Depends(current_user)):
+    """Admin-only: remove legacy placeholder clubs (no source_id) that have no real match
+    (no match_date and no players). Also removes their demo-only announcements."""
+    if not is_admin_user(user):
+        raise HTTPException(403, "Réservé aux administrateurs")
+    legacy = await db.clubs.find({"source_id": {"$exists": False}}, {"id": 1}).to_list(2000)
+    removed = 0
+    for lc in legacy:
+        real = await db.announcements.count_documents({
+            "club_id": lc["id"],
+            "$or": [
+                {"match_date": {"$nin": [None, ""]}},
+                {"players.0": {"$exists": True}},
+            ],
+        })
+        if real == 0:
+            await db.announcements.delete_many({"club_id": lc["id"]})
+            await db.clubs.delete_one({"id": lc["id"]})
+            removed += 1
+    return {"removed": removed}
+
 @api_router.get("/")
 async def root():
-    return {"message": "PadelConnect API", "status": "ok"}
+    return {"message": "weRpadel API", "status": "ok"}
 
 app.include_router(api_router)
+
+# App-level health check (outside the /api prefix) for deployment probes
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 app.add_middleware(
     CORSMiddleware,

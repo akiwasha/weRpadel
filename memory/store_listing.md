@@ -42,8 +42,8 @@ Sports (principale) · Style de vie (secondaire)
 ## URL de support
 https://padel-play-8.emergent.host
 
-## URL politique de confidentialité (À FOURNIR — obligatoire)
-https://votresite.com/confidentialite   ← remplacez par votre page réelle
+## URL politique de confidentialité
+https://sites.google.com/view/werpadel-confidentialite/accueil
 
 ---
 
