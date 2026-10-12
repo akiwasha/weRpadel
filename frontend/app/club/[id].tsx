@@ -129,10 +129,10 @@ export default function ClubDetail() {
       <SafeAreaView edges={["top"]} style={styles.hero}>
         <Image
           source={{ uri: club.image_url || "https://images.unsplash.com/photo-1658723826297-fe4d1b1e6600?w=800" }}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           contentFit="cover"
         />
-        <LinearGradient colors={["rgba(26,29,31,0.4)", "rgba(26,29,31,0.9)"]} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={["rgba(26,29,31,0.4)", "rgba(26,29,31,0.9)"]} style={StyleSheet.absoluteFill} />
         <View style={styles.heroContent}>
           <Pressable testID="club-back" onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={26} color={colors.onSurfaceInverse} />
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
   fullText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: type.base },
   joinAuthor: { backgroundColor: colors.surfaceTertiary },
   joinAuthorText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.base },
-  blurOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  blurOverlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   blurCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.xl, alignItems: "center", gap: spacing.sm,
     shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 8,

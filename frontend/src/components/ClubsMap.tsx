@@ -59,7 +59,7 @@ export default function ClubsMap({ clubs, onSelect }: { clubs: Club[]; onSelect:
         ref={mapRef}
         testID="clubs-map"
         provider={PROVIDER_DEFAULT}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         initialRegion={FRANCE_REGION}
         showsUserLocation={permState === "granted"}
       >

@@ -111,3 +111,9 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - **Seeding** : `server.py` charge `clubs_fr.json` dans `REAL_CLUBS`, seed idempotent par `source_id`. Migration unique guardée par `meta._id="clubs_import_v2"` qui retire les anciens clubs placeholder (sans `source_id`) n'ayant aucun vrai match (match_date/players), en préservant les clubs liés à de vrais matchs. Aucune suppression destructive répétée au démarrage.
 - Couverture : toutes régions métropolitaines + Corse + Outre-mer. La recherche "clubs proches" et le tri par distance fonctionnent désormais sur des coordonnées réelles.
 - Note : `/api/register-push` renvoie 500 en preview (clé EMERGENT_PUSH_KEY placeholder) — comportement attendu, la vraie clé est injectée au build/prod.
+
+
+## Mise à jour Expo SDK 57 (Oct 2026)
+- Projet migré de SDK 54 → SDK 57 (RN 0.86.3, React 19.2.3, expo-router 57, reanimated 4.5, maps 1.27) car Expo Go sur l'App Store est passé au SDK 57 (erreur 'Project is incompatible with this version of Expo Go').
+- Correctifs: StyleSheet.absoluteFillObject → absoluteFill (retiré dans RN 0.86); app.json: suppression newArchEnabled / android.edgeToEdgeEnabled (défaut).
+- Régression complète validée (test_reports/iteration_17.json). L'utilisateur doit **Republier** (Publish) pour que le QR code de déploiement serve la version SDK 57.

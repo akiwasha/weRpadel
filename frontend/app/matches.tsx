@@ -75,7 +75,7 @@ export default function MatchHistory() {
       const m = await api.matchHistory();
       setMatches(m);
       // Fetch weather for outdoor clubs of upcoming dated matches
-      const clubIds = Array.from(new Set(
+      const clubIds: string[] = Array.from(new Set<string>(
         m.filter((x: Match) => x.status === "upcoming" && x.match_date).map((x: Match) => x.club_id)
       ));
       setWeatherByClub((prev) => {

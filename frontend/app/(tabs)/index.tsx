@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3,
   },
-  cardImage: { ...StyleSheet.absoluteFillObject },
+  cardImage: { ...StyleSheet.absoluteFill },
   scrim: { position: "absolute", left: 0, right: 0, bottom: 0, height: "70%" },
   cardContent: { position: "absolute", left: 0, right: 0, bottom: 0, padding: spacing.lg, gap: spacing.xs },
   cardName: { color: colors.onSurfaceInverse, fontSize: type.xl, fontWeight: "800" },
