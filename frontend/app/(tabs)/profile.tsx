@@ -190,8 +190,21 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.onInfoMuted} />
           </Pressable>
         )}
+        {user.is_admin && (
+          <Pressable testID="admin-moderation-btn" onPress={() => router.push("/admin-reports")} style={styles.adminLink}>
+            <Ionicons name="shield-half-outline" size={20} color={colors.onInfoMuted} />
+            <Text style={styles.adminLinkText}>Admin · Modération & signalements</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onInfoMuted} />
+          </Pressable>
+        )}
 
         <View style={styles.legalCard}>
+          <Pressable testID="blocked-users-link" onPress={() => router.push("/blocked-users")} style={styles.legalRow}>
+            <Ionicons name="ban-outline" size={20} color={colors.onSurfaceSecondary} />
+            <Text style={styles.legalText}>Joueurs bloqués{user.blocked_count ? ` (${user.blocked_count})` : ""}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
+          </Pressable>
+          <View style={styles.legalDivider} />
           <Pressable testID="privacy-link" onPress={() => router.push("/privacy")} style={styles.legalRow}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.onSurfaceSecondary} />
             <Text style={styles.legalText}>Politique de confidentialité</Text>

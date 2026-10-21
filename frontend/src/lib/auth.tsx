@@ -19,6 +19,8 @@ export type User = {
   city?: string | null;
   preferred_region?: string | null;
   is_admin?: boolean;
+  warnings?: number;
+  blocked_count?: number;
 };
 
 export type SignUpInput = {

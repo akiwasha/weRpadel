@@ -124,6 +124,26 @@ async def send_email(*, to: str, subject: str, html: str, reply_to: str | None =
         raise HTTPException(status_code=500, detail="Impossible d'envoyer l'email")
 
 
+def report_email_html(report: dict, reporter: dict, reported: dict) -> str:
+    """Fixed server-side template: admin notification for a new user report."""
+    brand = escape(EMAIL_FROM_NAME)
+    details = escape(report.get("details") or "—")
+    ctx = escape(report.get("context_text") or "—")
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+        '<tr><td style="padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1a1d1f">'
+        f'<h2 style="margin:0 0 16px;color:#ff6b15">{brand} — nouveau signalement</h2>'
+        f'<p style="margin:0 0 8px"><strong>Motif :</strong> {escape(report.get("reason_label") or report.get("reason") or "")}</p>'
+        f'<p style="margin:0 0 8px"><strong>Signalé :</strong> {escape(reported.get("pseudo") or "")} ({escape(reported.get("email") or "")})</p>'
+        f'<p style="margin:0 0 8px"><strong>Par :</strong> {escape(reporter.get("pseudo") or "")}</p>'
+        f'<p style="margin:0 0 8px"><strong>Contexte :</strong> {escape(report.get("context_type") or "profil")}</p>'
+        f'<p style="margin:0 0 8px"><strong>Contenu signalé :</strong><br>{ctx}</p>'
+        f'<p style="margin:0 0 16px"><strong>Précisions :</strong><br>{details}</p>'
+        '<p style="margin:0;color:#555">Traite ce signalement depuis l\'application : Profil → Admin · Modération.</p>'
+        '</td></tr></table>'
+    )
+
+
 def password_reset_html(pseudo: str, code: str) -> str:
     """Fixed server-side template: 6-digit code for this app's own password reset."""
     brand = escape(EMAIL_FROM_NAME)

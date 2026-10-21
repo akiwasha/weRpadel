@@ -65,6 +65,7 @@ export default function ClubDetail() {
   const [offlineNames, setOfflineNames] = useState<string[]>([]);
   const [offlineInput, setOfflineInput] = useState("");
   const [posting, setPosting] = useState(false);
+  const [postErr, setPostErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
   const [joiningId, setJoiningId] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export default function ClubDetail() {
   const post = async () => {
     if (!text.trim() || !id) return;
     setPosting(true);
+    setPostErr(null);
     try {
       const priceNum = courtPrice.replace(",", ".").trim() === "" ? null : Number(courtPrice.replace(",", "."));
       const a = await api.postAnnouncement(id, text.trim(), matchDate, offlineNames, matchEndDate, priceNum);
@@ -96,7 +98,7 @@ export default function ClubDetail() {
       setCourtPrice("");
       setOfflineNames([]);
       setOfflineInput("");
-    } catch (e: any) { console.log(e); }
+    } catch (e: any) { setPostErr(e?.message || "Publication impossible"); }
     finally { setPosting(false); }
   };
 
@@ -536,6 +538,13 @@ export default function ClubDetail() {
                     {posting ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
                   </Pressable>
                 </View>
+                {postErr && (
+                  <View style={styles.postErrBanner} testID="ann-post-error">
+                    <Ionicons name="alert-circle" size={18} color={colors.error} />
+                    <Text style={styles.postErrText}>{postErr}</Text>
+                    <Pressable onPress={() => setPostErr(null)} hitSlop={8}><Ionicons name="close" size={18} color={colors.onSurfaceSecondary} /></Pressable>
+                  </View>
+                )}
               </>
             ) : (
               <Pressable testID="ann-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
@@ -727,4 +736,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
   },
   lockText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  postErrBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, padding: spacing.md,
+    borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error,
+  },
+  postErrText: { flex: 1, color: colors.error, fontSize: type.sm, lineHeight: 18 },
 });

@@ -180,6 +180,9 @@ export default function SignUp() {
             />
 
             {err && <Text style={styles.error} testID="signup-error">{err}</Text>}
+            <Text style={styles.rules} testID="signup-rules">
+              En t'inscrivant, tu acceptes nos règles de communauté : aucune tolérance pour les propos haineux, violents, racistes ou le harcèlement. Les messages sont filtrés automatiquement et tout manquement peut entraîner la suspension du compte.
+            </Text>
             <Pressable
               testID="signup-submit-button"
               style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
@@ -234,4 +237,5 @@ const styles = StyleSheet.create({
   linkWrap: { alignItems: "center", paddingVertical: spacing.lg },
   linkText: { color: colors.onSurfaceSecondary, fontSize: type.base },
   error: { color: colors.error, fontSize: type.base, textAlign: "center", marginTop: spacing.sm },
+  rules: { color: colors.onSurfaceTertiary, fontSize: type.sm, textAlign: "center", lineHeight: 18, marginTop: spacing.md },
 });

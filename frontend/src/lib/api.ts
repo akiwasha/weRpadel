@@ -62,6 +62,16 @@ export const api = {
   rateUser: (id: string, stars: number) => request(`/users/${id}/rate`, { method: "POST", body: JSON.stringify({ stars }) }),
   toggleFavorite: (id: string) => request(`/users/${id}/favorite`, { method: "POST" }),
   favorites: () => request("/users/favorites"),
+  blockedUsers: () => request("/users/blocked"),
+  blockUser: (id: string) => request(`/users/${id}/block`, { method: "POST" }),
+  unblockUser: (id: string) => request(`/users/${id}/block`, { method: "DELETE" }),
+  reportUser: (body: { reported_user_id: string; reason: string; details?: string; context_type?: string; context_id?: string }) =>
+    request("/reports", { method: "POST", body: JSON.stringify(body) }),
+  adminReports: (status?: string) => request(`/admin/reports${status ? `?status=${status}` : ""}`),
+  adminSetReportStatus: (id: string, status: string) =>
+    request(`/admin/reports/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  adminSuspendUser: (id: string) => request(`/admin/users/${id}/suspend`, { method: "POST" }),
+  adminUnsuspendUser: (id: string) => request(`/admin/users/${id}/unsuspend`, { method: "POST" }),
   listClubs: (search?: string, region?: string) => {
     const q = new URLSearchParams();
     if (search) q.set("search", search);

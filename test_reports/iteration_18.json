@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 18 — Community safety feature (AI moderation + reports + block + admin screens). BACKEND: 25/25 pytest OK on EXPO_PUBLIC_BACKEND_URL (public preview). Covered: clean msg 200 ; hateful msg 422 'Message non envoyé … Avertissement 1/3' ; abusive announcement 422 'Annonce non publiée … Avertissement 2/3' ; abusive bio via PUT /auth/me → 3e refus 403 'suspendu' ; suspended user cannot login (403) nor call /auth/me (403) ; register with abusive pseudo 422 without 'Avertissement' text ; register with normal pseudo OK. Reports : POST /api/reports 201 avec reason_label 'Spam ou arnaque', reason invalide 400, self-report 400 ; GET /api/admin/reports as admin liste avec reported.warnings et reported.suspended ; GET non-admin 403 ; PATCH statut resolved/dismissed/open OK, status invalide 400. Blocks (thomas↔sophie) : POST /block → is_blocked true, GET /users/{id} is_blocked flag ok, /users/blocked liste, messagerie bidirectionnelle 403, l'annonce du bloqué absente de /matches/open et /clubs/{id}/announcements pour le bloqueur, join sur annonce du bloqué 403, DELETE restaure. Admin : suspend self 400 ; suspend fresh user → login 403 → unsuspend → login OK avec warnings=0 ; GET /admin/moderation/events liste 200. Regression : login, clubs, matches/open, conversations, favorites tous 200. FRONTEND (390x844, mobile) : login marc@padel.fr OK → tabs/profile → my-pseudo='MarcPadel', 'Abonne-toi' card, admin-moderation-btn + blocked-users-link visibles. /blocked-users empty state OK ('Aucun joueur bloqué' + texte explicatif). /admin-reports : chips reports-filter-open|resolved|dismissed|all tous rendus, 1 carte de report affichée avec badge motif ('Spam ou arnaque'), MarcPadel · marc@padel.fr, '⚠ 0/3 avertissements', 'Signalé par TESTIter18B…', contexte profile, actions Suspendre + Traité + Ignorer. Click resolve-{id} → le rapport est mis à jour en place (status=resolved) mais RESTE dans la vue 'À traiter' jusqu'au prochain refetch (optimistic patch sans filtrage côté UI) ; en basculant sur l'onglet 'Traités' le rapport apparaît correctement. /player/{thomas_id} : player-menu, favorite-btn, msg-player-btn tous OK, blocked-banner masqué ; après block via API /users/{id}/block → blocked-banner apparaît avec 'Tu as bloqué ce joueur.' + unblock-btn 'Débloquer', msg-player-btn disparaît ; click unblock-btn → banner retiré, msg-player-btn réapparaît. /blocked-users liste ThomasR avec row testID 'blocked-{thomas_id}' et unblock-{thomas_id}. /chat/{julie_id} : chat-menu présent (⋮ header), MAIS composer verrouillé (chat-premium-lock visible, chat-input/chat-send-btn absents) car MarcPadel non abonné en RevenueCat Test Store sur web preview — flow backend du hateful message déjà validé par pytest. /(auth)/sign-up (déconnecté) : signup-rules rendu avec 'En t'inscrivant, tu acceptes nos règles de communauté : aucune tolérance pour les propos haineux, violents, racistes ou le harcèlement…' ✅. Aucun red screen, aucun crash. Console web : warnings expo-notifications sur web (attendu), 404 cloudinary images (attendu). Nettoyage : block Thomas→Marc retiré en fin de test ; utilisateurs TEST_iter18_* créés via /auth/register (non supprimables — pas d'endpoint admin delete, non bloquant). Demo users intacts (marc/julie/thomas/sophie/kevin/lea).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "admin-reports.tsx",
+        "issue": "Après click sur 'Traité' / 'Ignorer' / 'Suspendre', patch() met à jour le report in place (statut changé) MAIS ne le retire PAS de la liste du filtre courant 'À traiter'. Le rapport reste visible dans 'À traiter' jusqu'au prochain focus de l'écran. L'utilisateur peut avoir l'impression que l'action n'a pas marché. Suggestion : filtrer la liste localement après setStatus en retirant les items dont le statut ne correspond plus au filtre courant (ex. items.filter(x => !filter || x.status === filter)). Ref: /app/frontend/app/admin-reports.tsx:41-44",
+        "testID": "resolve-{id} / dismiss-{id} / reopen-{id}",
+        "priority": "MINOR"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration18.py",
+    "/app/test_reports/pytest/iter18_results.xml"
+  ],
+  "action_items": [
+    "(Optionnel, mineur) admin-reports.tsx : filtrer localement la liste après setStatus pour retirer le report du filtre courant, afin que l'action 'Traité' retire bien la carte de l'onglet 'À traiter' sans attendre un refetch.",
+    "(Note) Composer chat et composer annonce sont verrouillés sur web preview pour MarcPadel (non abonné RevenueCat Test Store). La validation du frontend du bandeau d'erreur 'chat-send-error' / 'ann-post-error' sur message haineux ne peut pas être exécutée depuis la web preview tant qu'aucun demo user n'est marqué isSubscribed=true sur web. Le flow backend (422 + Avertissement N/3) est totalement couvert par pytest. Si l'E1 veut valider le bandeau rouge en web, il faudra bypass temporaire du gate isSubscribed en env preview ou utiliser une app mobile Expo Go."
+  ],
+  "critical_code_review_comments": [
+    "moderation.py : enforce_clean_text() distingue bien le cas pseudo au signup (user.id=None → 422 sans gestion de warnings) ✅.",
+    "server.py:273 — current_user() renvoie 403 si suspended, ce qui empêche TOUS les endpoints authentifiés d'être appelés par un compte suspendu (y compris /auth/me) ✅.",
+    "server.py:755 — block_user utilise $addToSet + $pull favorites : la paire block/unblock est idempotente et retire bien le user des favoris lors du block ✅.",
+    "server.py:847 — admin_unsuspend remet warnings à 0 ET efface suspended_reason via $unset ✅.",
+    "player/[id].tsx:116-120 — blocked-banner masque le footer 'Envoyer un message' via la condition !isBlocked, et le bouton unblock-btn appelle bien l'API /users/{id}/block DELETE ✅.",
+    "chat/[id].tsx:186 — chat-send-error affiche bien l'erreur 422 renvoyée par le backend ; vérification visuelle non faisable sur web preview (composer locked)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration18.py",
+    "/app/test_reports/iteration_18.json",
+    "/app/test_reports/pytest/iter18_results.xml"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% des flows testables en web (chat composer locked = testé en backend)"},
+  "seed_data_creation": "Tests pytest créent 3-4 utilisateurs TEST_iter18_* via /auth/register (fresh_user_a suspendu puis unsuspended, fresh_user_b, 1 user pseudo abusif refusé, 1 user TEST_iter18_sus_* suspendu/réactivé). Aucun endpoint admin delete-user côté backend donc ces users persistent (non bloquant). Nettoyage effectué pour blocks créés par tests + Marc→Thomas block retiré après playwright. Rapport 'TEST_iter18 report' créé par fresh_user_b contre marc, statut final = 'open' après rotation open/resolved/dismissed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend testable via EXPO_PUBLIC_BACKEND_URL=https://padel-play-8.preview.emergentagent.com. Endpoints community safety validés : POST /api/messages (modération via enforce_clean_text), POST /api/clubs/{id}/announcements (idem), PUT /api/auth/me (bio+pseudo), POST /api/auth/register (pseudo), POST /api/reports (201, reason_label), GET /api/admin/reports (admin only), PATCH /api/admin/reports/{id}, POST/DELETE /api/users/{id}/block, GET /api/users/blocked, POST /api/admin/users/{id}/suspend|unsuspend, GET /api/admin/moderation/events. Suspended users bloqués au /auth/login ET /auth/me (via current_user dependency). Blocks filtrent /matches/open, /clubs/{id}/announcements et bloquent POST /messages + /announcements/{id}/join. TestIDs frontend confirmés : signup-rules, chat-menu, chat-input, chat-send-btn, chat-send-error, chat-premium-lock, player-menu, blocked-banner, unblock-btn, msg-player-btn, blocked-users-link, blocked-{id}, unblock-{id}, admin-moderation-btn, reports-filter-{open|resolved|dismissed|all}, report-{id}, resolve-{id}, dismiss-{id}, suspend-{id}, reopen-{id}. ATTENTION : chat/annonce composer gatés par isSubscribed (RevenueCat Test Store) ; en web preview, aucun demo user n'est marqué subscribed → composer locked ; les tests UI 'post hateful' ne sont faisables qu'en pytest côté backend.",
+  "rca_of_issue": "N/A — feature nouvellement livrée, validée. Seule remarque mineure : UX du dashboard admin pourrait filtrer localement les reports après action (voir frontend_issues.ui_bugs)."
+}

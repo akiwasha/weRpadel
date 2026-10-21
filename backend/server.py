@@ -26,7 +26,8 @@ except Exception:
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from email_service import send_email, password_reset_html, EMAIL_FROM_NAME  # noqa: E402
+from email_service import send_email, password_reset_html, report_email_html, EMAIL_FROM_NAME, EMAIL_REPLY_TO  # noqa: E402
+from moderation import enforce_clean_text, MAX_WARNINGS  # noqa: E402
 
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
@@ -269,14 +270,31 @@ async def current_user(authorization: Optional[str] = Header(None)):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(401, "User not found")
+    if user.get("suspended"):
+        raise HTTPException(403, SUSPENDED_MSG)
     return user
+
+SUSPENDED_MSG = "Ton compte est suspendu pour non-respect des règles de la communauté. Contacte le support pour toute question."
+
+async def require_admin(user=Depends(current_user)):
+    if not is_admin_user(user):
+        raise HTTPException(403, "Réservé aux administrateurs")
+    return user
+
+def blocked_ids(u: dict) -> list:
+    return u.get("blocked") or []
+
+def is_blocked_either_way(a: dict, b: dict) -> bool:
+    return b["id"] in blocked_ids(a) or a["id"] in blocked_ids(b)
 
 def user_public(u: dict, viewer: Optional[dict] = None) -> dict:
     count = u.get("reliability_count", 0)
     avg = round(u.get("reliability_sum", 0) / count, 1) if count > 0 else 0.0
     is_fav = False
+    is_blocked = False
     if viewer:
         is_fav = u["id"] in (viewer.get("favorites") or [])
+        is_blocked = u["id"] in blocked_ids(viewer)
     return {
         "id": u["id"],
         "pseudo": u.get("pseudo", ""),
@@ -286,6 +304,7 @@ def user_public(u: dict, viewer: Optional[dict] = None) -> dict:
         "reliability_count": count,
         "verified": avg >= 4.5 and count >= 5,
         "is_favorite": is_fav,
+        "is_blocked": is_blocked,
         "bio": u.get("bio"),
     }
 
@@ -301,6 +320,8 @@ def user_me(u: dict) -> dict:
         "city": u.get("city"),
         "preferred_region": u.get("preferred_region"),
         "is_admin": is_admin_user(u),
+        "warnings": int(u.get("warnings", 0)),
+        "blocked_count": len(blocked_ids(u)),
     }
 
 def match_status(match_date: Optional[str], match_end_date: Optional[str] = None) -> str:
@@ -519,6 +540,7 @@ async def register(body: RegisterInput):
         raise HTTPException(409, "Email déjà utilisé")
     if await db.users.find_one({"pseudo_lower": body.pseudo.lower()}):
         raise HTTPException(409, "Pseudo déjà pris")
+    await enforce_clean_text(db, {"id": None, "warnings": 0}, body.pseudo, "pseudo")
     user_id = str(uuid.uuid4())
     user = {
         "id": user_id,
@@ -547,6 +569,8 @@ async def login(body: LoginInput):
     user = await db.users.find_one({"email": body.email.lower()})
     if not user or not check_pw(body.password, user["password_hash"]):
         raise HTTPException(401, "Email ou mot de passe incorrect")
+    if user.get("suspended"):
+        raise HTTPException(403, SUSPENDED_MSG)
     token = make_token(user["id"])
     return {"token": token, "user": user_me(user)}
 
@@ -612,6 +636,7 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
     if body.pseudo and body.pseudo != user["pseudo"]:
         if await db.users.find_one({"pseudo_lower": body.pseudo.lower(), "id": {"$ne": user["id"]}}):
             raise HTTPException(409, "Pseudo déjà pris")
+        await enforce_clean_text(db, user, body.pseudo, "pseudo")
         updates["pseudo"] = body.pseudo
         updates["pseudo_lower"] = body.pseudo.lower()
     if body.level:
@@ -621,6 +646,8 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
     if body.avatar_url is not None:
         updates["avatar_url"] = body.avatar_url
     if body.bio is not None:
+        if body.bio.strip() and body.bio != (user.get("bio") or ""):
+            await enforce_clean_text(db, user, body.bio, "bio")
         updates["bio"] = body.bio
     for f in ("first_name", "last_name", "phone", "birth_date", "city"):
         val = getattr(body, f)
@@ -665,6 +692,15 @@ async def list_favorites(user=Depends(current_user)):
             out.append(user_public(u, user))
     return out
 
+@api_router.get("/users/blocked")
+async def list_blocked(user=Depends(current_user)):
+    out = []
+    for bid in blocked_ids(user):
+        u = await db.users.find_one({"id": bid})
+        if u:
+            out.append(user_public(u, user))
+    return out
+
 @api_router.get("/users/{user_id}")
 async def get_user(user_id: str, user=Depends(current_user)):
     u = await db.users.find_one({"id": user_id})
@@ -688,6 +724,138 @@ async def toggle_favorite(user_id: str, user=Depends(current_user)):
         is_fav = True
     await db.users.update_one({"id": user["id"]}, {"$set": {"favorites": favorites}})
     return {"is_favorite": is_fav}
+
+# ============ BLOCKS & REPORTS (community safety) ============
+REPORT_REASONS = {
+    "hate": "Haine ou discrimination",
+    "harassment": "Harcèlement ou insultes",
+    "violence": "Violence ou menaces",
+    "sexual": "Contenu sexuel",
+    "spam": "Spam ou arnaque",
+    "fake": "Faux profil / usurpation",
+    "other": "Autre",
+}
+
+class ReportInput(BaseModel):
+    reported_user_id: str
+    reason: str
+    details: Optional[str] = Field(default=None, max_length=1000)
+    context_type: Optional[str] = None  # message | announcement | profile
+    context_id: Optional[str] = None
+
+class ReportStatusInput(BaseModel):
+    status: str  # open | resolved | dismissed
+
+@api_router.post("/users/{user_id}/block")
+async def block_user(user_id: str, user=Depends(current_user)):
+    if user_id == user["id"]:
+        raise HTTPException(400, "Impossible de se bloquer soi-même")
+    if not await db.users.find_one({"id": user_id}):
+        raise HTTPException(404, "Utilisateur introuvable")
+    await db.users.update_one({"id": user["id"]}, {"$addToSet": {"blocked": user_id}, "$pull": {"favorites": user_id}})
+    return {"is_blocked": True}
+
+@api_router.delete("/users/{user_id}/block")
+async def unblock_user(user_id: str, user=Depends(current_user)):
+    await db.users.update_one({"id": user["id"]}, {"$pull": {"blocked": user_id}})
+    return {"is_blocked": False}
+
+@api_router.post("/reports", status_code=201)
+async def create_report(body: ReportInput, user=Depends(current_user)):
+    if body.reported_user_id == user["id"]:
+        raise HTTPException(400, "Impossible de se signaler soi-même")
+    if body.reason not in REPORT_REASONS:
+        raise HTTPException(400, "Motif invalide")
+    target = await db.users.find_one({"id": body.reported_user_id})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    report = {
+        "id": str(uuid.uuid4()),
+        "reporter_id": user["id"],
+        "reported_user_id": body.reported_user_id,
+        "reason": body.reason,
+        "reason_label": REPORT_REASONS[body.reason],
+        "details": (body.details or "").strip() or None,
+        "context_type": body.context_type,
+        "context_id": body.context_id,
+        "status": "open",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    # Attach the reported content when it is a message or announcement
+    if body.context_type == "message" and body.context_id:
+        m = await db.messages.find_one({"id": body.context_id}, {"_id": 0, "content": 1})
+        report["context_text"] = m["content"] if m else None
+    elif body.context_type == "announcement" and body.context_id:
+        a = await db.announcements.find_one({"id": body.context_id}, {"_id": 0, "content": 1})
+        report["context_text"] = a["content"] if a else None
+    await db.reports.insert_one(report)
+    report.pop("_id", None)
+    if EMAIL_REPLY_TO:
+        try:
+            await send_email(
+                to=EMAIL_REPLY_TO,
+                subject=f"[{EMAIL_FROM_NAME}] Nouveau signalement : {REPORT_REASONS[body.reason]}",
+                html=report_email_html(report, user, target),
+            )
+        except Exception as e:
+            logger.warning(f"Report email failed (non-blocking): {e}")
+    return report
+
+async def serialize_report(r: dict) -> dict:
+    reporter = await db.users.find_one({"id": r["reporter_id"]})
+    reported = await db.users.find_one({"id": r["reported_user_id"]})
+    return {
+        **{k: v for k, v in r.items() if k != "_id"},
+        "reason_label": REPORT_REASONS.get(r["reason"], r["reason"]),
+        "reporter": user_public(reporter) if reporter else None,
+        "reported": {
+            **user_public(reported),
+            "email": reported.get("email"),
+            "warnings": int(reported.get("warnings", 0)),
+            "suspended": bool(reported.get("suspended")),
+        } if reported else None,
+    }
+
+@api_router.get("/admin/reports")
+async def admin_list_reports(status: Optional[str] = None, _=Depends(require_admin)):
+    q = {"status": status} if status else {}
+    items = await db.reports.find(q, {"_id": 0}).sort("created_at", -1).to_list(300)
+    return [await serialize_report(r) for r in items]
+
+@api_router.patch("/admin/reports/{report_id}")
+async def admin_update_report(report_id: str, body: ReportStatusInput, _=Depends(require_admin)):
+    if body.status not in ("open", "resolved", "dismissed"):
+        raise HTTPException(400, "Statut invalide")
+    r = await db.reports.find_one({"id": report_id})
+    if not r:
+        raise HTTPException(404, "Signalement introuvable")
+    await db.reports.update_one({"id": report_id}, {"$set": {"status": body.status, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    r["status"] = body.status
+    return await serialize_report(r)
+
+@api_router.post("/admin/users/{user_id}/suspend")
+async def admin_suspend_user(user_id: str, admin=Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(400, "Impossible de suspendre son propre compte")
+    r = await db.users.update_one({"id": user_id}, {"$set": {"suspended": True, "suspended_reason": "Suspendu par un administrateur"}})
+    if not r.matched_count:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return {"suspended": True}
+
+@api_router.post("/admin/users/{user_id}/unsuspend")
+async def admin_unsuspend_user(user_id: str, _=Depends(require_admin)):
+    r = await db.users.update_one({"id": user_id}, {"$set": {"suspended": False, "warnings": 0}, "$unset": {"suspended_reason": ""}})
+    if not r.matched_count:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return {"suspended": False}
+
+@api_router.get("/admin/moderation/events")
+async def admin_moderation_events(_=Depends(require_admin)):
+    items = await db.moderation_events.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for ev in items:
+        u = await db.users.find_one({"id": ev["user_id"]})
+        ev["user"] = user_public(u) if u else None
+    return items
 
 async def apply_rating(from_id: str, to_id: str, stars: int):
     existing = await db.ratings.find_one({"from_user": from_id, "to_user": to_id})
@@ -810,6 +978,8 @@ MAX_PLAYERS = 4
 async def serialize_announcement(a: dict, viewer: dict, club: Optional[dict] = None) -> dict:
     current_user_id = viewer["id"]
     author = await db.users.find_one({"id": a["author_id"]})
+    if author and author["id"] != current_user_id and is_blocked_either_way(viewer, author):
+        author = None  # hidden for blocked pairs; callers drop announcements without author
     player_ids = a.get("players") or [a["author_id"]]
     offline_names = a.get("offline_names")
     if offline_names is None:
@@ -980,6 +1150,7 @@ async def create_announcement(club_id: str, body: AnnouncementCreate, user=Depen
     club = await db.clubs.find_one({"id": club_id})
     if not club:
         raise HTTPException(404, "Club introuvable")
+    await enforce_clean_text(db, user, body.content, "announcement")
     offline_names = [n.strip() for n in (body.offline_names or []) if n.strip()][:3]
     if not offline_names and body.party_size > 1:
         offline_names = ["" for _ in range(body.party_size - 1)]
@@ -1082,6 +1253,9 @@ async def join_announcement(ann_id: str, user=Depends(current_user)):
     offline_count = len(offline_names) if offline_names is not None else ann.get("offline_count", 0)
     if user["id"] in players:
         return await serialize_announcement(ann, user)
+    author = await db.users.find_one({"id": ann["author_id"]})
+    if author and is_blocked_either_way(user, author):
+        raise HTTPException(403, "Tu ne peux pas rejoindre ce match")
     if len(players) + offline_count >= MAX_PLAYERS:
         raise HTTPException(409, "Match complet (4 joueurs)")
     players.append(user["id"])
@@ -1174,7 +1348,7 @@ async def list_conversations(user=Depends(current_user)):
         last = c["last"]
         other_id = last["to_user_id"] if last["from_user_id"] == user["id"] else last["from_user_id"]
         other = await db.users.find_one({"id": other_id})
-        if not other:
+        if not other or other_id in blocked_ids(user):
             continue
         unread = await db.messages.count_documents({
             "conv_id": conv_id(user["id"], other_id),
@@ -1213,6 +1387,11 @@ async def send_message(body: MessageCreate, user=Depends(current_user)):
     target = await db.users.find_one({"id": body.to_user_id})
     if not target:
         raise HTTPException(404, "Destinataire introuvable")
+    if body.to_user_id in blocked_ids(user):
+        raise HTTPException(403, "Tu as bloqué cet utilisateur. Débloque-le pour lui écrire.")
+    if user["id"] in blocked_ids(target):
+        raise HTTPException(403, "Impossible d'envoyer un message à cet utilisateur")
+    await enforce_clean_text(db, user, body.content, "message")
     msg = {
         "id": str(uuid.uuid4()),
         "conv_id": conv_id(user["id"], body.to_user_id),

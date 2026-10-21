@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -8,6 +8,7 @@ import { api, fullUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedPill } from "@/src/components/VerifiedBadge";
+import { ReportSheet } from "@/src/components/ReportSheet";
 
 export default function PlayerProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +19,7 @@ export default function PlayerProfile() {
   const [rating, setRating] = useState(false);
   const [selectedStars, setSelectedStars] = useState<number | null>(null);
   const [isFav, setIsFav] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -38,6 +40,33 @@ export default function PlayerProfile() {
       const r = await api.toggleFavorite(id);
       setIsFav(r.is_favorite);
     } catch (e) { console.log(e); setIsFav((v) => !v); }
+  };
+
+  const block = () => {
+    Alert.alert(
+      `Bloquer ${player.pseudo} ?`,
+      "Il ne pourra plus t'écrire ni rejoindre tes matchs, et vous ne verrez plus vos annonces respectives. Tu pourras le débloquer depuis ton profil.",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Bloquer", style: "destructive", onPress: async () => {
+          try { await api.blockUser(player.id); setPlayer({ ...player, is_blocked: true }); setIsFav(false); }
+          catch (e: any) { Alert.alert("Erreur", e.message); }
+        } },
+      ],
+    );
+  };
+
+  const unblock = async () => {
+    try { await api.unblockUser(player.id); setPlayer({ ...player, is_blocked: false }); }
+    catch (e: any) { Alert.alert("Erreur", e.message); }
+  };
+
+  const openMenu = () => {
+    Alert.alert(player.pseudo, undefined, [
+      { text: "Signaler ce joueur", onPress: () => setReportOpen(true) },
+      { text: player.is_blocked ? "Débloquer" : "Bloquer ce joueur", style: "destructive", onPress: () => player.is_blocked ? unblock() : block() },
+      { text: "Annuler", style: "cancel" },
+    ]);
   };
 
   const rate = async (stars: number) => {
@@ -67,13 +96,29 @@ export default function PlayerProfile() {
         {isMe ? (
           <View style={{ width: 40 }} />
         ) : (
-          <Pressable testID="favorite-btn" onPress={toggleFav} style={styles.favBtn}>
-            <Ionicons name={isFav ? "heart" : "heart-outline"} size={24} color={isFav ? colors.brandPrimary : colors.onSurfaceSecondary} />
-          </Pressable>
+          <View style={{ flexDirection: "row" }}>
+            <Pressable testID="favorite-btn" onPress={toggleFav} style={styles.favBtn}>
+              <Ionicons name={isFav ? "heart" : "heart-outline"} size={24} color={isFav ? colors.brandPrimary : colors.onSurfaceSecondary} />
+            </Pressable>
+            <Pressable testID="player-menu" onPress={openMenu} style={styles.favBtn} hitSlop={8}>
+              <Ionicons name="ellipsis-vertical" size={22} color={colors.onSurface} />
+            </Pressable>
+          </View>
         )}
       </View>
 
+      {!isMe && (
+        <ReportSheet visible={reportOpen} onClose={() => setReportOpen(false)} reportedUserId={player.id} reportedPseudo={player.pseudo} contextType="profile" />
+      )}
+
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }}>
+        {player.is_blocked && (
+          <View style={styles.blockedBanner} testID="blocked-banner">
+            <Ionicons name="ban" size={18} color={colors.error} />
+            <Text style={styles.blockedText}>Tu as bloqué ce joueur.</Text>
+            <Pressable testID="unblock-btn" onPress={unblock} hitSlop={8}><Text style={styles.unblockText}>Débloquer</Text></Pressable>
+          </View>
+        )}
         <View style={styles.top}>
           {player.avatar_url ? (
             <Image source={{ uri: fullUrl(player.avatar_url)! }} style={styles.avatar} contentFit="cover" />
@@ -140,7 +185,7 @@ export default function PlayerProfile() {
         )}
       </ScrollView>
 
-      {!isMe && (
+      {!isMe && !player.is_blocked && (
         <View style={styles.footer}>
           <Pressable
             testID="msg-player-btn"
@@ -194,4 +239,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 16,
   },
   msgBtnText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.lg },
+  blockedBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.error,
+  },
+  blockedText: { flex: 1, color: colors.error, fontWeight: "700" },
+  unblockText: { color: colors.brandPrimary, fontWeight: "800" },
 });

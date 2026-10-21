@@ -122,3 +122,9 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - POST /api/auth/forgot-password (toujours 200, code 6 chiffres bcrypt-hashé, 15 min, max 3 demandes/15 min) et POST /api/auth/reset-password (5 essais max, code à usage unique) — email via Emergent managed Resend (`backend/email_service.py`, EMAIL_FROM_NAME=weRpadel, Reply-To bigzenprod@gmail.com).
 - Écran `app/(auth)/forgot-password.tsx` (2 étapes) + lien « Mot de passe oublié ? » sur sign-in. Auto-connexion après reset.
 - Clubs : ajout 4PADEL Boulogne-Billancourt (1 Rue Victor Griffuelhes) ; adresses réelles pour Forest Hill Aquaboulevard et Forest Hill La Marche Marnes-la-Coquette ; le seed met désormais à jour les adresses « Adresse à confirmer » depuis clubs_fr.json.
+
+## Sécurité communautaire : modération IA, signalement, blocage (Oct 2026)
+- Modération IA (Jev `jev-latest` via clé Emergent, `backend/moderation.py`) sur : messages privés, annonces, pseudo (inscription + modif), bio. Contenu refusé → 422 « … Avertissement N/3 » ; 3e refus → compte suspendu (403, login bloqué). Fail-open si service indisponible (log + `checked=False`). Événements dans `moderation_events`.
+- Signalement : POST /api/reports (motifs hate/harassment/violence/sexual/spam/fake/other, contexte message/annonce/profil) + email admin (EMAIL_REPLY_TO). Admin (ADMIN_EMAILS) : GET/PATCH /api/admin/reports, suspend/unsuspend, /api/admin/moderation/events. Écran `app/admin-reports.tsx`.
+- Blocage : POST/DELETE /api/users/{id}/block, GET /api/users/blocked. Effets : messages 403 dans les deux sens, annonces masquées mutuellement, join 403, conversation masquée, retiré des favoris. UI : menu ⋮ (chat + profil joueur), bannière « bloqué », écran `app/blocked-users.tsx`, composant `ReportSheet`.
+- Règles de communauté affichées à l'inscription (exigence Apple UGC 1.2). Test report: test_reports/iteration_18.json.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, TextInput, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -9,19 +9,22 @@ import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedTick } from "@/src/components/VerifiedBadge";
+import { ReportSheet } from "@/src/components/ReportSheet";
 
 type Msg = { id: string; from_user_id: string; to_user_id: string; content: string; created_at: string };
 
 export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { isSubscribed } = useSubscription();
   const [other, setOther] = useState<any>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sendErr, setSendErr] = useState<string | null>(null);
+  const [report, setReport] = useState<{ contextId?: string } | null>(null);
   const listRef = useRef<FlatList<Msg>>(null);
 
   const load = useCallback(async () => {
@@ -51,14 +54,55 @@ export default function Chat() {
   const send = async () => {
     if (!text.trim() || !id) return;
     setSending(true);
+    setSendErr(null);
     const content = text.trim();
     setText("");
     try {
       const m = await api.sendMessage(id, content);
       setMsgs((prev) => [...prev, m]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    } catch (e) { console.log(e); setText(content); }
+    } catch (e: any) {
+      setText(content);
+      const msg = e?.message || "Envoi impossible";
+      setSendErr(msg);
+      if (e?.status === 403 && msg.includes("suspendu")) {
+        Alert.alert("Compte suspendu", msg, [{ text: "OK", onPress: async () => { await signOut(); router.replace("/(auth)/sign-in"); } }]);
+      }
+    }
     finally { setSending(false); }
+  };
+
+  const openMenu = () => {
+    if (!other) return;
+    Alert.alert(other.pseudo, undefined, [
+      { text: "Voir le profil", onPress: () => router.push(`/player/${other.id}`) },
+      { text: "Signaler ce joueur", onPress: () => setReport({}) },
+      {
+        text: other.is_blocked ? "Débloquer" : "Bloquer ce joueur",
+        style: "destructive",
+        onPress: () => other.is_blocked ? unblock() : confirmBlock(),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  };
+
+  const confirmBlock = () => {
+    Alert.alert(
+      `Bloquer ${other.pseudo} ?`,
+      "Il ne pourra plus t'écrire ni rejoindre tes matchs, et vous ne verrez plus vos annonces respectives.",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Bloquer", style: "destructive", onPress: async () => {
+          try { await api.blockUser(other.id); setOther({ ...other, is_blocked: true }); router.back(); }
+          catch (e: any) { setSendErr(e.message); }
+        } },
+      ],
+    );
+  };
+
+  const unblock = async () => {
+    try { await api.unblockUser(other.id); setOther({ ...other, is_blocked: false }); }
+    catch (e: any) { setSendErr(e.message); }
   };
 
   if (loading || !other) {
@@ -87,7 +131,19 @@ export default function Chat() {
             <Text style={styles.headSub}>{other.level} · ⭐ {other.reliability_avg.toFixed(1)}</Text>
           </View>
         </Pressable>
+        <Pressable testID="chat-menu" onPress={openMenu} style={styles.backBtn} hitSlop={8}>
+          <Ionicons name="ellipsis-vertical" size={22} color={colors.onSurface} />
+        </Pressable>
       </View>
+
+      <ReportSheet
+        visible={!!report}
+        onClose={() => setReport(null)}
+        reportedUserId={other.id}
+        reportedPseudo={other.pseudo}
+        contextType={report?.contextId ? "message" : "profile"}
+        contextId={report?.contextId}
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
         <FlatList
@@ -106,9 +162,16 @@ export default function Chat() {
             const mine = item.from_user_id === user?.id;
             return (
               <View style={[styles.bubbleWrap, { alignItems: mine ? "flex-end" : "flex-start" }]}>
-                <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                <Pressable
+                  onLongPress={mine ? undefined : () => Alert.alert("Ce message", undefined, [
+                    { text: "Signaler ce message", style: "destructive", onPress: () => setReport({ contextId: item.id }) },
+                    { text: "Annuler", style: "cancel" },
+                  ])}
+                  delayLongPress={350}
+                  style={[styles.bubble, mine ? styles.mine : styles.theirs]}
+                >
                   <Text style={[styles.bubbleText, mine && { color: colors.onBrandPrimary }]}>{item.content}</Text>
-                </View>
+                </Pressable>
                 <Text style={styles.bubbleTime}>
                   {new Date(item.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                 </Text>
@@ -118,7 +181,15 @@ export default function Chat() {
         />
 
         {isSubscribed ? (
-          <View style={styles.composer}>
+          <View>
+            {sendErr && (
+              <View style={styles.errBanner} testID="chat-send-error">
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <Text style={styles.errText}>{sendErr}</Text>
+                <Pressable onPress={() => setSendErr(null)} hitSlop={8}><Ionicons name="close" size={18} color={colors.onSurfaceSecondary} /></Pressable>
+              </View>
+            )}
+            <View style={styles.composer}>
             <TextInput
               testID="chat-input"
               value={text}
@@ -136,6 +207,7 @@ export default function Chat() {
             >
               {sending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
             </Pressable>
+            </View>
           </View>
         ) : (
           <Pressable testID="chat-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
@@ -187,4 +259,10 @@ const styles = StyleSheet.create({
     margin: spacing.md, paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
   },
   lockText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
+  errBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    marginHorizontal: spacing.md, marginTop: spacing.sm, padding: spacing.md,
+    borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.error,
+  },
+  errText: { flex: 1, color: colors.error, fontSize: type.sm, lineHeight: 18 },
 });
