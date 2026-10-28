@@ -38,7 +38,7 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 
 ## Monétisation — Abonnement Premium (implémenté 2026-08-14)
 - **RevenueCat** (Emergent-managed) — entitlement `pro`, offering `default`, package `$rc_annual`.
-- **Prix : 9,90 €/an**, auto-renouvelable, **sans essai gratuit**.
+- **Prix : 9,90 €/an**, auto-renouvelable, **3 premiers mois offerts** (offre de lancement : 15 mois pour un 1er abonnement).
 - **Modèle freemium** :
   - GRATUIT : inscription, parcourir les clubs (liste + carte), voir annonces & profils, notation.
   - PREMIUM requis : envoyer des messages privés (chat) + poster des annonces de club.

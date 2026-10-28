@@ -48,15 +48,14 @@ https://sites.google.com/view/werpadel-confidentialite/accueil
 ---
 
 ## NOTES POUR LE REVIEWER (Apple : App Review Information > Notes / Google : Accès à l'application)
-This app requires an account to access its features. Please use the demo account below:
+This app requires an account to access its features. Please use the demo account provided in the App Review Information sign-in fields.
 
-Email : marc@padel.fr
-Mot de passe / Password : password123
+(Compte reviewer : à créer en production et à saisir directement dans App Store Connect > App Review Information — ne pas écrire ses identifiants dans ce repo.)
 
 Notes:
 - The app is in French. It is a matchmaking app for amateur padel players in France.
 - Core flow: log in → "Clubs" or "Rechercher" tab → open a club or a match → join/create a 4-player match.
-- Premium subscription (RevenueCat) unlocks unlimited match joining; a 2-month free trial applies on the annual plan.
+- Premium subscription (RevenueCat) unlocks unlimited match joining; the first 3 months are free on the annual plan (€9.90/year), i.e. 15 months for a first subscription.
 - Push notifications (match reminders, new-match alerts) require a real device and are not triggerable from the review sandbox.
 - Location permission is used only to show nearby padel clubs.
 
