@@ -1,18 +1,19 @@
 {
   "expo": {
     "name": "weRpadel",
-    "slug": "frontend",
+    "slug": "werpadel",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "werpadel",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.padelplay.y9om9x",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Voir les clubs de padel proches de vous",
-        "NSPhotoLibraryUsageDescription": "Importer une photo de profil"
+        "NSPhotoLibraryUsageDescription": "Importer une photo de profil",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -42,7 +43,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Voir les clubs de padel proches de vous"
+          "locationWhenInUsePermission": "Voir les clubs de padel proches de vous",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
         }
       ],
       [
@@ -60,9 +64,22 @@
           "color": "#FF6B15"
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Importer une photo de profil",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "expo-font",
       "expo-image",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-status-bar",
       "expo-web-browser"
     ],

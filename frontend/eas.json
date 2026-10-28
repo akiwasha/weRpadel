@@ -1,0 +1,27 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://padel-play-8.emergent.host",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "test_CeMdhVNEkieYTjMmBptdNREiDvk",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_HpsZQblVWbxlrLVIMtACQhSpLws",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_uHLdqNzfsYiUVvUUMIkBYOVWzVd"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal"
+    },
+    "production": {
+      "extends": "base",
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
