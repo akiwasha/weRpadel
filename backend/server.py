@@ -47,6 +47,9 @@ ADMIN_EMAILS = set(e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "")
 def is_admin_user(u: dict) -> bool:
     return (u.get("email") or "").lower() in ADMIN_EMAILS
 
+# Demo users/announcements are only seeded when explicitly enabled (local dev / preview), never in production
+SEED_DEMO_DATA = os.environ.get("SEED_DEMO_DATA", "").strip().lower() in ("1", "true", "yes")
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
@@ -662,7 +665,10 @@ async def update_me(body: ProfileUpdate, user=Depends(current_user)):
 
 @api_router.delete("/auth/me")
 async def delete_me(user=Depends(current_user)):
-    uid = user["id"]
+    await delete_user_cascade(user["id"])
+    return {"status": "deleted"}
+
+async def delete_user_cascade(uid: str):
     # Reverse the reliability this user gave to others, then drop their ratings
     async for r in db.ratings.find({"from_user": uid}):
         await db.users.update_one(
@@ -679,7 +685,6 @@ async def delete_me(user=Depends(current_user)):
     await db.users.update_many({"favorites": uid}, {"$pull": {"favorites": uid}})
     # Finally, delete the account
     await db.users.delete_one({"id": uid})
-    return {"status": "deleted"}
 
 # ============ USERS ============
 @api_router.get("/users/favorites")
@@ -1485,6 +1490,17 @@ import json as _json
 with open(ROOT_DIR / "clubs_fr.json", encoding="utf-8") as _f:
     REAL_CLUBS = _json.load(_f)
 
+AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"
+AV_F = "https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?w=300"
+DEMO_USERS = [
+    {"email": "marc@padel.fr", "pseudo": "MarcPadel", "level": "Intermédiaire", "avatar": AV_M, "sum": 22, "count": 5, "bio": "Je joue tous les week-ends, ambiance détendue !"},
+    {"email": "julie@padel.fr", "pseudo": "JulieSmash", "level": "Confirmé", "avatar": AV_F, "sum": 28, "count": 6, "bio": "Compétitrice mais fair-play. Toujours partante pour un match."},
+    {"email": "thomas@padel.fr", "pseudo": "ThomasR", "level": "Débutant", "avatar": AV_M, "sum": 8, "count": 2, "bio": "Débute le padel, cherche des joueurs patients."},
+    {"email": "sophie@padel.fr", "pseudo": "SophiePad", "level": "Confirmé", "avatar": AV_F, "sum": 19, "count": 4, "bio": None},
+    {"email": "kevin@padel.fr", "pseudo": "KevinAce", "level": "Expert", "avatar": AV_M, "sum": 24, "count": 5, "bio": "Ancien tennisman reconverti au padel."},
+    {"email": "lea@padel.fr", "pseudo": "LeaVolley", "level": "Intermédiaire", "avatar": AV_F, "sum": 14, "count": 3, "bio": "Dispo en soirée et le samedi matin."},
+]
+
 @app.on_event("startup")
 async def on_startup():
     await db.users.create_index("email", unique=True)
@@ -1516,18 +1532,9 @@ async def on_startup():
     # Ensure every club has an is_outdoor flag (default: indoor)
     await db.clubs.update_many({"is_outdoor": {"$exists": False}}, {"$set": {"is_outdoor": False}})
 
-    # seed demo users
-    AV_M = "https://images.unsplash.com/photo-1637071692126-d0ee7df18271?w=300"
-    AV_F = "https://images.unsplash.com/photo-1595435742656-5272d0b3fa82?w=300"
-    if await db.users.count_documents({}) == 0:
-        demo_users = [
-            {"email": "marc@padel.fr", "pseudo": "MarcPadel", "level": "Intermédiaire", "avatar": AV_M, "sum": 22, "count": 5, "bio": "Je joue tous les week-ends, ambiance détendue !"},
-            {"email": "julie@padel.fr", "pseudo": "JulieSmash", "level": "Confirmé", "avatar": AV_F, "sum": 28, "count": 6, "bio": "Compétitrice mais fair-play. Toujours partante pour un match."},
-            {"email": "thomas@padel.fr", "pseudo": "ThomasR", "level": "Débutant", "avatar": AV_M, "sum": 8, "count": 2, "bio": "Débute le padel, cherche des joueurs patients."},
-            {"email": "sophie@padel.fr", "pseudo": "SophiePad", "level": "Confirmé", "avatar": AV_F, "sum": 19, "count": 4, "bio": None},
-            {"email": "kevin@padel.fr", "pseudo": "KevinAce", "level": "Expert", "avatar": AV_M, "sum": 24, "count": 5, "bio": "Ancien tennisman reconverti au padel."},
-            {"email": "lea@padel.fr", "pseudo": "LeaVolley", "level": "Intermédiaire", "avatar": AV_F, "sum": 14, "count": 3, "bio": "Dispo en soirée et le samedi matin."},
-        ]
+    # seed demo users (opt-in via SEED_DEMO_DATA)
+    if SEED_DEMO_DATA and await db.users.count_documents({}) == 0:
+        demo_users = DEMO_USERS
         for u in demo_users:
             await db.users.insert_one({
                 "id": str(uuid.uuid4()),
@@ -1544,8 +1551,8 @@ async def on_startup():
             })
         logger.info(f"Seeded {len(demo_users)} demo users")
 
-    # seed demo announcements across clubs
-    if await db.announcements.count_documents({}) == 0:
+    # seed demo announcements across clubs (opt-in: otherwise real users would be picked as authors)
+    if SEED_DEMO_DATA and await db.announcements.count_documents({}) == 0:
         all_users = await db.users.find({}).to_list(50)
         all_clubs = await db.clubs.find({"approved": True}).to_list(50)
         if all_users and all_clubs:
@@ -1604,6 +1611,18 @@ async def cleanup_legacy_clubs(user=Depends(current_user)):
             await db.announcements.delete_many({"club_id": lc["id"]})
             await db.clubs.delete_one({"id": lc["id"]})
             removed += 1
+    return {"removed": removed}
+
+@api_router.post("/admin/cleanup-demo-data")
+async def cleanup_demo_data(_=Depends(require_admin)):
+    """Admin-only: delete the seeded demo accounts (and, by cascade, their announcements,
+    messages and ratings). Idempotent."""
+    removed = []
+    for d in DEMO_USERS:
+        u = await db.users.find_one({"email": d["email"]}, {"id": 1})
+        if u:
+            await delete_user_cascade(u["id"])
+            removed.append(d["email"])
     return {"removed": removed}
 
 @api_router.get("/")
