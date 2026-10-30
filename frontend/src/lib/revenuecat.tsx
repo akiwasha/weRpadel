@@ -91,6 +91,30 @@ function useSubscriptionContext() {
   };
 }
 
+// Only advertise the free trial to users who will actually get it (App Store guideline 3.1.2).
+export function useFreeTrialEligible(pkg?: PurchasesPackage) {
+  const product = pkg?.product;
+  const checkIos = rcEnabled && Platform.OS === "ios" && !!product?.introPrice;
+
+  const eligibilityQuery = useQuery({
+    queryKey: ["revenuecat", "intro-eligibility", product?.identifier],
+    queryFn: async () => {
+      const result = await Purchases.checkTrialOrIntroductoryPriceEligibility([product!.identifier]);
+      return result[product!.identifier]?.status ?? null;
+    },
+    enabled: checkIos,
+    staleTime: 300 * 1000,
+  });
+
+  if (!product) return false;
+  if (Platform.OS === "ios") {
+    // UNKNOWN or INELIGIBLE: show the regular price, as RevenueCat recommends.
+    return checkIos && eligibilityQuery.data === Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+  }
+  // Google Play only returns the offers the user is eligible for.
+  return !!product.defaultOption?.freePhase;
+}
+
 type SubscriptionContextValue = ReturnType<typeof useSubscriptionContext>;
 const Context = createContext<SubscriptionContextValue | null>(null);
 

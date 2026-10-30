@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import type { PurchasesPackage } from "react-native-purchases";
-import { useSubscription } from "@/src/lib/revenuecat";
+import { useSubscription, useFreeTrialEligible } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
 const BENEFITS = [
@@ -27,6 +27,7 @@ export default function Paywall() {
   const currentOffering = offerings?.current;
   const pkg: PurchasesPackage | undefined = currentOffering?.availablePackages?.[0];
   const price = pkg?.product?.priceString || "9,90 €";
+  const trialEligible = useFreeTrialEligible(pkg);
 
   const noProducts = !isLoading && (!pkg || !currentOffering);
 
@@ -99,10 +100,14 @@ export default function Paywall() {
         ) : (
           <>
             <View style={styles.priceCard}>
-              <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>3 MOIS OFFERTS 🎁</Text></View>
+              {trialEligible && (
+                <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>3 MOIS OFFERTS 🎁</Text></View>
+              )}
               <Text style={styles.priceLabel}>Abonnement annuel</Text>
               <Text style={styles.priceValue}>{price}<Text style={styles.pricePeriod}> / an</Text></Text>
-              <Text style={styles.trialLine}>Les 3 premiers mois offerts — soit 15 mois pour ton 1er abonnement</Text>
+              {trialEligible && (
+                <Text style={styles.trialLine}>Les 3 premiers mois offerts — soit 15 mois pour ton 1er abonnement</Text>
+              )}
               <Text style={styles.priceHint}>Puis renouvellement automatique chaque année · Résiliable à tout moment</Text>
             </View>
 
@@ -117,7 +122,7 @@ export default function Paywall() {
               {isPurchasing ? (
                 <ActivityIndicator color={colors.onBrandPrimary} />
               ) : (
-                <Text style={styles.subscribeText}>Commencer — 3 mois offerts</Text>
+                <Text style={styles.subscribeText}>{trialEligible ? "Commencer — 3 mois offerts" : "S’abonner"}</Text>
               )}
             </Pressable>
 
@@ -142,7 +147,9 @@ export default function Paywall() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Confirmer l’abonnement</Text>
             <Text style={styles.modalBody}>
-              Tu vas t’abonner à weRpadel Premium pour {price} par an.
+              {trialEligible
+                ? `Tes 3 premiers mois sont offerts, puis weRpadel Premium coûte ${price} par an.`
+                : `Tu vas t’abonner à weRpadel Premium pour ${price} par an.`}
             </Text>
             <View style={styles.modalActions}>
               <Pressable testID="paywall-confirm-cancel" onPress={() => setConfirmOpen(false)} style={[styles.modalBtn, styles.modalCancel]}>
