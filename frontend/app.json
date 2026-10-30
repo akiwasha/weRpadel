@@ -8,7 +8,7 @@
     "scheme": "werpadel",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.emergent.padelplay.y9om9x",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Voir les clubs de padel proches de vous",
