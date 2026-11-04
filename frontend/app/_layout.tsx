@@ -1,4 +1,4 @@
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import { Alert, LogBox, Platform } from "react-native";
@@ -18,16 +18,24 @@ import { registerForPush } from "@/src/lib/push";
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
 
+// Current route, kept up to date by AuthGate, so a message push for the
+// conversation already on screen doesn't pop a banner.
+let currentPath = "";
+
 // Push: foreground display behavior (module scope, before any component)
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async (notification) => {
+      const url = notification.request.content.data?.action_url;
+      const show = !(typeof url === "string" && url.startsWith("/chat/") && url === currentPath);
+      return {
+        shouldShowAlert: show,
+        shouldPlaySound: show,
+        shouldSetBadge: false,
+        shouldShowBanner: show,
+        shouldShowList: show,
+      };
+    },
   });
 }
 
@@ -52,6 +60,8 @@ function AuthGate() {
   const { user, ready } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const pathname = usePathname();
+  useEffect(() => { currentPath = pathname; }, [pathname]);
   const rcIdentityRef = useRef<string | null>(null);
   const [, setPurchaseIdentityError] = useState<string | null>(null);
   const queryClient = useQueryClient();

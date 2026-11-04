@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Header
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Header, BackgroundTasks
 from fastapi.responses import Response
 from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
@@ -1297,6 +1297,42 @@ async def leave_announcement(ann_id: str, user=Depends(current_user)):
     ann["players"] = players
     return await serialize_announcement(ann, user)
 
+@api_router.delete("/announcements/{ann_id}")
+async def delete_announcement(ann_id: str, user=Depends(current_user)):
+    ann = await db.announcements.find_one({"id": ann_id})
+    if not ann:
+        raise HTTPException(404, "Annonce introuvable")
+    if ann["author_id"] != user["id"] and not is_admin_user(user):
+        raise HTTPException(403, "Seul l'organisateur peut supprimer cette annonce")
+    await db.announcements.delete_one({"id": ann_id})
+    # Tell the players who had joined, unless the match is already over.
+    others = [p for p in (ann.get("players") or []) if p not in (ann["author_id"], user["id"])]
+    start = None
+    try:
+        if ann.get("match_date"):
+            start = datetime.fromisoformat(ann["match_date"].replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    if others and (start is None or start > datetime.now(timezone.utc)):
+        club = await db.clubs.find_one({"id": ann["club_id"]})
+        club_name = club["name"] if club else "ton club"
+        when = f" du {start.astimezone(PARIS_TZ).strftime('%d/%m à %Hh%M')}" if start else ""
+        try:
+            await send_push(
+                recipients=others,
+                data={
+                    "title": "Match annulé",
+                    "message": f"L'organisateur a annulé le match{when} à {club_name}.",
+                    "action_url": f"/club/{ann['club_id']}",
+                },
+                idempotency_key=f"cancel-{ann_id}",
+            )
+        except Exception as e:
+            logger.warning(f"Cancel push failed (non-blocking): {e}")
+    return {"status": "deleted"}
+
 @api_router.post("/announcements/{ann_id}/rate")
 async def rate_match(ann_id: str, body: MatchRatingInput, user=Depends(current_user)):
     ann = await db.announcements.find_one({"id": ann_id})
@@ -1386,7 +1422,7 @@ async def get_conversation(other_id: str, user=Depends(current_user)):
     return msgs
 
 @api_router.post("/messages")
-async def send_message(body: MessageCreate, user=Depends(current_user)):
+async def send_message(body: MessageCreate, background: BackgroundTasks, user=Depends(current_user)):
     if body.to_user_id == user["id"]:
         raise HTTPException(400, "Impossible de s'écrire à soi-même")
     target = await db.users.find_one({"id": body.to_user_id})
@@ -1408,7 +1444,25 @@ async def send_message(body: MessageCreate, user=Depends(current_user)):
     }
     await db.messages.insert_one(msg)
     msg.pop("_id", None)
+    # Notify the recipient after the response is sent, so a slow push relay never delays the message.
+    background.add_task(push_new_message, user, body.to_user_id, msg)
     return msg
+
+async def push_new_message(sender: dict, to_user_id: str, msg: dict) -> None:
+    content = msg["content"]
+    preview = content if len(content) <= 120 else content[:117] + "…"
+    try:
+        await send_push(
+            recipients=[to_user_id],
+            data={
+                "title": f"💬 {sender.get('pseudo') or 'Nouveau message'}",
+                "message": preview,
+                "action_url": f"/chat/{sender['id']}",
+            },
+            idempotency_key=f"msg-{msg['id']}",
+        )
+    except Exception as e:
+        logger.warning(f"Message push failed (non-blocking): {e}")
 
 # ============ AVATAR UPLOAD ============
 @api_router.post("/upload/avatar")

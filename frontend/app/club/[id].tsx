@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -69,6 +69,7 @@ export default function ClubDetail() {
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [weather, setWeather] = useState<any[]>([]);
 
   const load = useCallback(async () => {
@@ -117,6 +118,31 @@ export default function ClubDetail() {
       setItems((prev) => prev.map((i) => (i.id === ann.id ? updated : i)));
     } catch (e) { console.log(e); }
     finally { setJoiningId(null); }
+  };
+
+  const removeAnnouncement = (ann: Announcement) => {
+    const doDelete = async () => {
+      setDeletingId(ann.id);
+      try {
+        await api.deleteAnnouncement(ann.id);
+        setItems((prev) => prev.filter((i) => i.id !== ann.id));
+      } catch (e: any) {
+        Alert.alert("Suppression impossible", e?.message || "Réessaie plus tard.");
+      } finally {
+        setDeletingId(null);
+      }
+    };
+    const detail = ann.players.length > 1
+      ? "Les joueurs inscrits seront prévenus de l'annulation."
+      : "Cette action est définitive.";
+    if (Platform.OS === "web") {
+      if (window.confirm(`Supprimer l'annonce ? ${detail}`)) doDelete();
+      return;
+    }
+    Alert.alert("Supprimer l'annonce ?", detail, [
+      { text: "Annuler", style: "cancel" },
+      { text: "Supprimer", style: "destructive", onPress: doDelete },
+    ]);
   };
 
   if (loading || !club) {
@@ -402,9 +428,22 @@ export default function ClubDetail() {
                   </View>
 
                   {item.is_author ? (
-                    <View style={[styles.joinBtn, styles.joinAuthor]}>
-                      <Ionicons name="ribbon" size={16} color={colors.onSurfaceSecondary} />
-                      <Text style={styles.joinAuthorText}>Ton match</Text>
+                    <View style={styles.authorRow}>
+                      <View style={[styles.joinBtn, styles.joinAuthor, { flex: 1 }]}>
+                        <Ionicons name="ribbon" size={16} color={colors.onSurfaceSecondary} />
+                        <Text style={styles.joinAuthorText}>Ton match</Text>
+                      </View>
+                      <Pressable
+                        testID={`ann-delete-${item.id}`}
+                        accessibilityLabel="Supprimer l'annonce"
+                        onPress={() => removeAnnouncement(item)}
+                        disabled={deletingId === item.id}
+                        style={[styles.joinBtn, styles.leaveBtn, styles.deleteBtn]}
+                      >
+                        {deletingId === item.id
+                          ? <ActivityIndicator color={colors.error} />
+                          : <Ionicons name="trash-outline" size={18} color={colors.error} />}
+                      </Pressable>
                     </View>
                   ) : item.is_member ? (
                     <Pressable
@@ -701,6 +740,8 @@ const styles = StyleSheet.create({
   fullBtn: { backgroundColor: colors.surfaceTertiary },
   fullText: { color: colors.onSurfaceTertiary, fontWeight: "800", fontSize: type.base },
   joinAuthor: { backgroundColor: colors.surfaceTertiary },
+  authorRow: { flexDirection: "row", gap: spacing.sm },
+  deleteBtn: { width: 52 },
   joinAuthorText: { color: colors.onSurfaceSecondary, fontWeight: "800", fontSize: type.base },
   blurOverlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   blurCard: {

@@ -94,6 +94,7 @@ export const api = {
   rateMatch: (annId: string, ratings: { user_id: string; stars: number }[]) =>
     request(`/announcements/${annId}/rate`, { method: "POST", body: JSON.stringify({ ratings }) }),
   toggleMute: (annId: string) => request(`/announcements/${annId}/mute`, { method: "POST" }),
+  deleteAnnouncement: (annId: string) => request(`/announcements/${annId}`, { method: "DELETE" }),
   joinAnnouncement: (annId: string) => request(`/announcements/${annId}/join`, { method: "POST" }),
   leaveAnnouncement: (annId: string) => request(`/announcements/${annId}/leave`, { method: "POST" }),
   conversations: () => request("/messages/conversations"),
