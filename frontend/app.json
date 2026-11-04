@@ -46,7 +46,7 @@
           "locationWhenInUsePermission": "Voir les clubs de padel proches de vous",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
-          "motionUsagePermission": false
+          "motionUsagePermission": "weRpadel n'utilise pas les données de mouvement de votre appareil."
         }
       ],
       [
