@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+import { File } from "expo-file-system";
 import { getToken } from "./storage";
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -102,10 +104,15 @@ export const api = {
   uploadAvatar: async (uri: string) => {
     const token = await getToken();
     const form = new FormData();
-    const name = `avatar-${Date.now()}.jpg`;
-    // React Native native shape
-    // @ts-ignore
-    form.append("file", { uri, name, type: "image/jpeg" });
+    if (Platform.OS === "web") {
+      const blob = await (await fetch(uri)).blob();
+      form.append("file", blob, `avatar-${Date.now()}.jpg`);
+    } else {
+      // Since SDK 57 the global fetch is expo/fetch, which rejects React Native's
+      // { uri, name, type } parts ("Unsupported FormDataPart implementation").
+      // It needs a Blob-like object, which expo-file-system's File is.
+      form.append("file", new File(uri) as any);
+    }
     const res = await fetch(`${BASE}/api/upload/avatar`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
