@@ -86,3 +86,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Clés et certificats Apple : ne jamais les versionner
+*.p8
+*.p12
+*.mobileprovision
