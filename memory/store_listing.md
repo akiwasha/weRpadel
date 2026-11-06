@@ -120,6 +120,8 @@ The app is in French. It is a matchmaking app for amateur padel players in Franc
 
 Sign in with the demo account provided in the sign-in fields.
 
+The app is new and has few real users yet, so a few sample players and upcoming matches were added for this review. They will be removed before the app is released.
+
 Free features: club directory and map, open matches list, weather for outdoor clubs.
 Premium features (auto-renewable subscription "weRpadel Premium", annual, €9.90, first 3 months free): posting a match, joining a match, private messaging. The paywall opens from the Profile tab ("Abonne-toi" card), or from a club page ("Abonne-toi pour poster une annonce" button). The purchase can be completed with a sandbox account.
 
