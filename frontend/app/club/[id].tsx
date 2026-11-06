@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator, FlatList, Alert } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,7 +11,8 @@ import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 import { VerifiedTick } from "@/src/components/VerifiedBadge";
-import MatchDatePicker, { formatMatchRange } from "@/src/components/MatchDatePicker";
+import { formatMatchRange } from "@/src/components/MatchDatePicker";
+import CreateMatchSheet from "@/src/components/CreateMatchSheet";
 
 type Player = { id: string; pseudo: string; avatar_url: string | null; level: string };
 type Announcement = {
@@ -55,17 +56,11 @@ export default function ClubDetail() {
   const router = useRouter();
   const { user } = useAuth();
   const { isSubscribed } = useSubscription();
+  const insets = useSafeAreaInsets();
   const [club, setClub] = useState<any>(null);
   const [tab, setTab] = useState<"info" | "chat">("chat");
   const [items, setItems] = useState<Announcement[]>([]);
-  const [text, setText] = useState("");
-  const [matchDate, setMatchDate] = useState<string | null>(null);
-  const [matchEndDate, setMatchEndDate] = useState<string | null>(null);
-  const [courtPrice, setCourtPrice] = useState("");
-  const [offlineNames, setOfflineNames] = useState<string[]>([]);
-  const [offlineInput, setOfflineInput] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [postErr, setPostErr] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState("Tous");
   const [joiningId, setJoiningId] = useState<string | null>(null);
@@ -84,31 +79,6 @@ export default function ClubDetail() {
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const post = async () => {
-    if (!text.trim() || !id) return;
-    setPosting(true);
-    setPostErr(null);
-    try {
-      const priceNum = courtPrice.replace(",", ".").trim() === "" ? null : Number(courtPrice.replace(",", "."));
-      const a = await api.postAnnouncement(id, text.trim(), matchDate, offlineNames, matchEndDate, priceNum);
-      setItems([a, ...items]);
-      setText("");
-      setMatchDate(null);
-      setMatchEndDate(null);
-      setCourtPrice("");
-      setOfflineNames([]);
-      setOfflineInput("");
-    } catch (e: any) { setPostErr(e?.message || "Publication impossible"); }
-    finally { setPosting(false); }
-  };
-
-  const addOffline = () => {
-    const n = offlineInput.trim();
-    if (!n || offlineNames.length >= 3) return;
-    setOfflineNames([...offlineNames, n]);
-    setOfflineInput("");
-  };
 
   const toggleJoin = async (ann: Announcement) => {
     if (!isSubscribed) { router.push("/paywall"); return; }
@@ -291,7 +261,7 @@ export default function ClubDetail() {
           )}
         </ScrollView>
       ) : (
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
+        <View style={{ flex: 1 }}>
           <View style={styles.filterRow}>
             <ScrollView
               horizontal
@@ -493,98 +463,12 @@ export default function ClubDetail() {
             )}
           </View>
 
-          <View style={styles.composer}>
+          <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
             {isSubscribed ? (
-              <>
-                <View style={styles.offlineComposer}>
-                  <Text style={styles.partyLabel}>Joueurs déjà réunis (hors app) :</Text>
-                  <View style={styles.offlineChipsRow}>
-                    {offlineNames.map((n, i) => (
-                      <Pressable
-                        key={`${n}-${i}`}
-                        testID={`offline-name-${i}`}
-                        onPress={() => setOfflineNames(offlineNames.filter((_, idx) => idx !== i))}
-                        style={styles.offlineNameChip}
-                      >
-                        <Ionicons name="person" size={13} color={colors.onBrandSecondary} />
-                        <Text style={styles.offlineNameText}>{n}</Text>
-                        <Ionicons name="close-circle" size={15} color={colors.onBrandSecondary} />
-                      </Pressable>
-                    ))}
-                    {offlineNames.length < 3 && (
-                      <View style={styles.offlineInputWrap}>
-                        <TextInput
-                          testID="offline-name-input"
-                          value={offlineInput}
-                          onChangeText={setOfflineInput}
-                          onSubmitEditing={addOffline}
-                          placeholder="Prénom + Entrée"
-                          placeholderTextColor={colors.onSurfaceTertiary}
-                          style={styles.offlineInput}
-                          returnKeyType="done"
-                        />
-                        <Pressable testID="offline-add-btn" onPress={addOffline} style={styles.offlineAddBtn}>
-                          <Ionicons name="add" size={18} color={colors.onBrandPrimary} />
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <MatchDatePicker value={matchDate} onChange={(s, e) => { setMatchDate(s); setMatchEndDate(e); }} testIDPrefix="compose" />
-                <View style={styles.priceInputCard}>
-                  <View style={styles.priceInputRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.priceInputLabel}>Tarif terrain (€)</Text>
-                      <TextInput
-                        testID="ann-court-price-input"
-                        value={courtPrice}
-                        onChangeText={setCourtPrice}
-                        placeholder="ex : 32"
-                        placeholderTextColor={colors.onSurfaceTertiary}
-                        keyboardType="decimal-pad"
-                        style={styles.priceInput}
-                      />
-                    </View>
-                    <Ionicons name="arrow-forward" size={18} color={colors.onSurfaceTertiary} style={{ marginTop: 18 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.priceInputLabel}>Par joueur (÷4)</Text>
-                      <View style={[styles.priceInput, styles.priceInputReadonly]}>
-                        <Text style={styles.priceInputReadonlyText}>
-                          {courtPrice.replace(",", ".").trim() && !isNaN(Number(courtPrice.replace(",", ".")))
-                            ? `${(Number(courtPrice.replace(",", ".")) / 4).toFixed(2)} €`
-                            : "—"}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-                <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                  <TextInput
-                    testID="ann-content-input"
-                    value={text}
-                    onChangeText={setText}
-                    placeholder="Je cherche un partenaire..."
-                    placeholderTextColor={colors.onSurfaceTertiary}
-                    style={styles.contentInput}
-                    multiline
-                  />
-                  <Pressable
-                    testID="ann-post-btn"
-                    onPress={post}
-                    disabled={posting || !text.trim()}
-                    style={[styles.sendBtn, (!text.trim() || posting) && { opacity: 0.5 }]}
-                  >
-                    {posting ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="send" size={20} color={colors.onBrandPrimary} />}
-                  </Pressable>
-                </View>
-                {postErr && (
-                  <View style={styles.postErrBanner} testID="ann-post-error">
-                    <Ionicons name="alert-circle" size={18} color={colors.error} />
-                    <Text style={styles.postErrText}>{postErr}</Text>
-                    <Pressable onPress={() => setPostErr(null)} hitSlop={8}><Ionicons name="close" size={18} color={colors.onSurfaceSecondary} /></Pressable>
-                  </View>
-                )}
-              </>
+              <Pressable testID="ann-compose-open" onPress={() => setComposerOpen(true)} style={styles.composeBtn}>
+                <Ionicons name="add-circle" size={20} color={colors.onBrandPrimary} />
+                <Text style={styles.composeBtnText}>Créer un match</Text>
+              </Pressable>
             ) : (
               <Pressable testID="ann-premium-lock" onPress={() => router.push("/paywall")} style={styles.lockComposer}>
                 <Ionicons name="lock-closed" size={18} color={colors.onBrandPrimary} />
@@ -592,7 +476,15 @@ export default function ClubDetail() {
               </Pressable>
             )}
           </View>
-        </KeyboardAvoidingView>
+
+          <CreateMatchSheet
+            visible={composerOpen}
+            clubId={id!}
+            clubName={club.name}
+            onClose={() => setComposerOpen(false)}
+            onPosted={(a) => setItems((prev) => [a, ...prev])}
+          />
+        </View>
       )}
     </View>
   );
@@ -664,12 +556,6 @@ const styles = StyleSheet.create({
   datePillPast: { backgroundColor: colors.surfaceTertiary },
   datePillOngoing: { backgroundColor: "#DCE9FF" },
   datePillText: { color: colors.onBrandSecondary, fontWeight: "700", fontSize: type.sm },
-  priceInputCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.md, gap: spacing.xs },
-  priceInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  priceInputLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700", marginBottom: 4 },
-  priceInput: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: type.base, color: colors.onSurface, borderWidth: 1, borderColor: colors.border },
-  priceInputReadonly: { justifyContent: "center" },
-  priceInputReadonlyText: { fontSize: type.base, color: colors.brandPrimary, fontWeight: "800" },
   annPricePill: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.infoMuted, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 5, marginTop: 6 },
   annPriceText: { color: colors.onInfoMuted, fontWeight: "700", fontSize: type.sm },
   statusTag: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
@@ -708,21 +594,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderStrong, borderStyle: "dashed",
   },
   emptyChipText: { fontSize: type.sm, fontWeight: "700", color: colors.onSurfaceTertiary },
-  offlineComposer: { marginBottom: spacing.sm, gap: spacing.xs },
-  offlineChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
-  offlineNameChip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: colors.brandSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 7,
-  },
-  offlineNameText: { fontSize: type.sm, fontWeight: "700", color: colors.onBrandSecondary },
-  offlineInputWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
-  offlineInput: {
-    minWidth: 120, backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
-    paddingHorizontal: spacing.md, paddingVertical: 7, fontSize: type.sm, color: colors.onSurface,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  offlineAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
-  partyLabel: { fontSize: type.sm, color: colors.onSurfaceSecondary, fontWeight: "700" },
   confirmedBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6,
@@ -755,31 +626,17 @@ const styles = StyleSheet.create({
   blurBtn: { backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: 14, marginTop: spacing.sm },
   blurBtnText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
   composer: {
-    padding: spacing.md, gap: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
-    paddingBottom: Platform.OS === "ios" ? spacing.xl : spacing.md,
   },
-  availInput: {
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg, paddingVertical: 10, fontSize: type.base, color: colors.onSurface,
+  composeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
   },
-  contentInput: {
-    flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg, paddingVertical: 10, fontSize: type.base, color: colors.onSurface,
-    maxHeight: 100, minHeight: 44,
-  },
-  sendBtn: {
-    width: 44, height: 44, borderRadius: radius.pill,
-    backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
-  },
+  composeBtnText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
   lockComposer: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
     paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.brandPrimary,
   },
   lockText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: type.base },
-  postErrBanner: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, padding: spacing.md,
-    borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error,
-  },
-  postErrText: { flex: 1, color: colors.error, fontSize: type.sm, lineHeight: 18 },
 });
