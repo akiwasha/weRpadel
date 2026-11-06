@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Modal } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Modal, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { PurchasesPackage } from "react-native-purchases";
 import { useSubscription, useFreeTrialEligible } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from "@/src/lib/legal";
 
 const BENEFITS = [
   { icon: "chatbubbles", text: "Messagerie privée illimitée avec les autres joueurs" },
@@ -138,6 +139,16 @@ export default function Paywall() {
               Le paiement sera débité via ton compte App Store / Google Play. L’abonnement se renouvelle
               automatiquement sauf annulation au moins 24 h avant la fin de la période.
             </Text>
+
+            <View style={styles.legalLinks}>
+              <Pressable testID="paywall-terms-link" onPress={() => Linking.openURL(TERMS_OF_USE_URL)} hitSlop={8}>
+                <Text style={styles.legalLink}>Conditions d’utilisation</Text>
+              </Pressable>
+              <Text style={styles.legal}>·</Text>
+              <Pressable testID="paywall-privacy-link" onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} hitSlop={8}>
+                <Text style={styles.legalLink}>Politique de confidentialité</Text>
+              </Pressable>
+            </View>
           </>
         )}
       </ScrollView>
@@ -192,6 +203,8 @@ const styles = StyleSheet.create({
   restoreBtn: { alignItems: "center", paddingVertical: spacing.lg },
   restoreText: { color: colors.brandPrimary, fontWeight: "700", fontSize: type.base },
   legal: { fontSize: 11, color: colors.onSurfaceTertiary, textAlign: "center", paddingHorizontal: spacing.xl, lineHeight: 16 },
+  legalLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm },
+  legalLink: { fontSize: 12, color: colors.brandPrimary, fontWeight: "600", textDecorationLine: "underline" },
   error: { color: colors.error, textAlign: "center", marginTop: spacing.md, paddingHorizontal: spacing.lg },
   activeCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, margin: spacing.lg, backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg },
   activeText: { flex: 1, fontSize: type.lg, fontWeight: "700", color: colors.onSurface },

@@ -2,9 +2,11 @@
 // ⚠️ À PERSONNALISER : remplacez ces valeurs par vos informations réelles.
 export const SUPPORT_EMAIL = "bigzenprod@gmail.com";
 export const ORG_NAME = "weRpadel";
-export const PRIVACY_LAST_UPDATED = "Juin 2026";
+export const PRIVACY_LAST_UPDATED = "Novembre 2026";
 // URL publique de la politique (à renseigner aussi dans App Store Connect).
 export const PRIVACY_POLICY_URL = "https://sites.google.com/view/werpadel-confidentialite/accueil";
+// Conditions d'utilisation de l'abonnement : contrat de licence standard d'Apple (EULA).
+export const TERMS_OF_USE_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
 export const PRIVACY_POLICY = `Dernière mise à jour : ${PRIVACY_LAST_UPDATED}
 
@@ -18,7 +20,7 @@ Données de compte (que vous fournissez) : adresse e-mail, pseudonyme (public), 
 
 Données d'utilisation : matchs créés, rejoints et historique, messages échangés avec les autres joueurs, notes de fiabilité données et reçues, clubs favoris.
 
-Localisation : position approximative de l'appareil, uniquement lorsque vous l'autorisez, afin d'afficher les clubs de padel proches de vous. Nous ne suivons pas votre position en continu et ne la stockons pas de façon permanente.
+Localisation : si vous l'autorisez, la position de votre appareil sert uniquement à centrer la carte des clubs sur vous. Elle reste sur votre appareil : elle n'est ni envoyée à nos serveurs ni stockée.
 
 Données techniques : identifiant de compte, jeton de notification push (si activé), informations de base sur l'appareil.
 
@@ -36,7 +38,7 @@ Les autres joueurs voient vos informations publiques : pseudonyme, photo de prof
 
 4. Partage des données
 
-Nous partageons des données uniquement avec les prestataires nécessaires au fonctionnement de l'Application : Apple App Store / Google Play et RevenueCat (abonnements) ; hébergeur / base de données (stockage sécurisé) ; service de notifications push ; fournisseur météo Open-Meteo (coordonnées du club uniquement, aucune donnée personnelle). Nous pouvons divulguer des données si la loi l'exige.
+Nous partageons des données uniquement avec les prestataires nécessaires au fonctionnement de l'Application : Apple App Store / Google Play et RevenueCat (abonnements) ; hébergeur / base de données (stockage sécurisé) ; service de notifications push ; service d'envoi d'e-mails (réinitialisation du mot de passe) ; service de modération automatique par intelligence artificielle, qui analyse le texte des messages, annonces, pseudonymes et bios afin de bloquer les contenus haineux, violents ou harcelants ; fournisseurs de géocodage et de météo Open-Meteo (nom de ville saisi et coordonnées du club uniquement, sans lien avec votre identité). Nous pouvons divulguer des données si la loi l'exige.
 
 5. Conservation des données
 
