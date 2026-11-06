@@ -1679,6 +1679,43 @@ async def cleanup_demo_data(_=Depends(require_admin)):
             removed.append(d["email"])
     return {"removed": removed}
 
+@api_router.get("/admin/users")
+async def admin_list_users(_=Depends(require_admin)):
+    """Admin-only: every account with its activity counts, oldest first (to spot test accounts)."""
+    users = await db.users.find({}, {"_id": 0, "id": 1, "pseudo": 1, "email": 1, "created_at": 1}).sort("created_at", 1).to_list(5000)
+    out = []
+    for u in users:
+        uid = u["id"]
+        out.append({
+            "id": uid,
+            "pseudo": u.get("pseudo"),
+            "email": u.get("email"),
+            "created_at": u.get("created_at"),
+            "is_admin": is_admin_user(u),
+            "announcements": await db.announcements.count_documents({"author_id": uid}),
+            "messages": await db.messages.count_documents({"$or": [{"from_user_id": uid}, {"to_user_id": uid}]}),
+        })
+    return out
+
+class AdminDeleteUsersInput(BaseModel):
+    ids: List[str] = Field(min_length=1, max_length=200)
+
+@api_router.post("/admin/users/delete")
+async def admin_delete_users(body: AdminDeleteUsersInput, admin=Depends(require_admin)):
+    """Admin-only: delete the given accounts with the same cascade as "Supprimer mon compte".
+    Admin accounts (including the caller) are never deleted."""
+    deleted, skipped = [], []
+    for uid in dict.fromkeys(body.ids):
+        u = await db.users.find_one({"id": uid}, {"id": 1, "email": 1, "pseudo": 1})
+        if not u:
+            skipped.append({"id": uid, "reason": "introuvable"})
+        elif is_admin_user(u) or uid == admin["id"]:
+            skipped.append({"id": uid, "pseudo": u.get("pseudo"), "reason": "compte admin"})
+        else:
+            await delete_user_cascade(uid)
+            deleted.append({"id": uid, "pseudo": u.get("pseudo"), "email": u.get("email")})
+    return {"deleted": deleted, "skipped": skipped}
+
 @api_router.get("/")
 async def root():
     return {"message": "weRpadel API", "status": "ok"}
