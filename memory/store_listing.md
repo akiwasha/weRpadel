@@ -55,8 +55,8 @@ partenaire,joueur,match,club,terrain,partie,raquette,sport,amateur,niveau,double
 Sports (principale) · Style de vie (secondaire)
 
 ## URL d'assistance (obligatoire)
-À créer : une page « Support » qui donne au moins l'adresse de contact. Voir le texte proposé plus bas.
-L'ancienne valeur (https://padel-play-8.emergent.host) renvoie une erreur JSON : Apple la refuserait.
+https://sites.google.com/view/werpadel-assistance/accueil
+(Remplace l'ancienne valeur https://padel-play-8.emergent.host, qui renvoie une erreur JSON.)
 
 ## URL marketing (facultative)
 Laisser vide.
@@ -69,7 +69,7 @@ https://sites.google.com/view/werpadel-confidentialite/accueil
 
 ---
 
-## Page « Support » à publier
+## Page « Support » (publiée sur https://sites.google.com/view/werpadel-assistance/accueil)
 Titre : weRpadel — Assistance
 
 Une question, un problème avec l'application ou votre abonnement ? Écrivez-nous à bigzenprod@gmail.com, nous répondons sous 48 h.
