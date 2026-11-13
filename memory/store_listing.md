@@ -41,7 +41,7 @@ Abonnement annuel à 9,90 €, avec les 3 premiers mois offerts pour un premier 
 • L'abonnement se renouvelle automatiquement, sauf annulation au moins 24 h avant la fin de la période en cours.
 • Gérez ou résiliez votre abonnement dans les réglages de votre compte Apple.
 
-Conditions d'utilisation : https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+Conditions d'utilisation (EULA) : https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 Politique de confidentialité : https://sites.google.com/view/werpadel-confidentialite/accueil
 
 Rejoignez la communauté weRpadel et jouez plus souvent ! 🎾
