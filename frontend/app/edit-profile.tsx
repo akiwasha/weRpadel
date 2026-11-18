@@ -54,8 +54,11 @@ export default function EditProfile() {
   }, []);
 
   const pick = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
+    // Android uses the system photo picker, which needs no storage permission.
+    if (Platform.OS === "ios") {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+    }
     const r = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"] as any,
       quality: 0.7,
