@@ -16,7 +16,7 @@ Responsable du traitement : ${ORG_NAME} — ${SUPPORT_EMAIL}.
 
 1. Données que nous collectons
 
-Données de compte (que vous fournissez) : adresse e-mail, pseudonyme (public), nom et prénom (privés), date de naissance / âge (privé), numéro de téléphone (privé), ville et région préférée, niveau de jeu et bio (facultatif), photo de profil (facultatif).
+Données de compte (que vous fournissez) : adresse e-mail, pseudonyme (public), nom et prénom (privés), ville et région préférée ; en option : date de naissance (privée), numéro de téléphone (privé), niveau de jeu, bio et photo de profil.
 
 Données d'utilisation : matchs créés, rejoints et historique, messages échangés avec les autres joueurs, notes de fiabilité données et reçues, clubs favoris.
 

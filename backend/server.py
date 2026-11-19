@@ -103,8 +103,9 @@ class RegisterInput(BaseModel):
     pseudo: str = Field(min_length=2, max_length=30)
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
-    phone: str = Field(min_length=6, max_length=32)
-    birth_date: str = Field(min_length=4, max_length=10)  # YYYY-MM-DD
+    # Optional (App Store guideline 5.1.1(v)): no feature needs them
+    phone: Optional[str] = Field(default=None, max_length=32)
+    birth_date: Optional[str] = Field(default=None, max_length=10)  # YYYY-MM-DD
     city: str = Field(min_length=1, max_length=80)
 
 class LoginInput(BaseModel):
@@ -553,8 +554,8 @@ async def register(body: RegisterInput):
         "password_hash": hash_pw(body.password),
         "first_name": body.first_name.strip(),
         "last_name": body.last_name.strip(),
-        "phone": body.phone.strip(),
-        "birth_date": body.birth_date.strip(),
+        "phone": (body.phone or "").strip() or None,
+        "birth_date": (body.birth_date or "").strip() or None,
         "city": body.city.strip(),
         "avatar_url": None,
         "level": "Débutant",

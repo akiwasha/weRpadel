@@ -75,8 +75,8 @@ Application mobile de mise en relation entre joueurs de padel amateurs en France
 - (Le filtre par ville a été écarté : la proximité est déjà couverte par la carte géolocalisée.)
 
 ## Inscription enrichie + confidentialité (Itération 13)
-- À l'inscription on collecte : **prénom, nom, pseudonyme, email, téléphone, date de naissance (JJ/MM/AAAA → stocké YYYY-MM-DD), ville** (+ mot de passe). Tous **requis**.
-- **Seul le `pseudo` est public.** prénom/nom/email/téléphone/date de naissance/ville sont **privés** : renvoyés uniquement dans `/auth/me` (register/login/me via helper `user_me`) et éditables via `PUT /auth/me`. `user_public` (endpoints publics `/users/{id}`, annonces, joueurs) n'expose JAMAIS ces champs. Vérifié : aucune fuite sur `/users/{id}`, register sans ces champs → 422.
+- À l'inscription on collecte : **prénom, nom, pseudonyme, email, ville** (+ mot de passe), tous requis. Téléphone et date de naissance (JJ/MM/AAAA → stocké YYYY-MM-DD) ne sont plus demandés à l'inscription (rejet Apple 5.1.1(v), nov. 2026) : facultatifs, modifiables dans « Modifier le profil ».
+- **Seul le `pseudo` est public.** prénom/nom/email/téléphone/date de naissance/ville sont **privés** : renvoyés uniquement dans `/auth/me` (register/login/me via helper `user_me`) et éditables via `PUT /auth/me`. `user_public` (endpoints publics `/users/{id}`, annonces, joueurs) n'expose JAMAIS ces champs. Vérifié : aucune fuite sur `/users/{id}`, register sans prénom/nom/ville → 422.
 - UI : `sign-up.tsx` (bandeau confidentialité + tag "public" sur pseudo), `profile.tsx` carte "Mes infos (privées)" 🔒, `edit-profile.tsx` section "Coordonnées privées" éditable.
 
 ## Notification "Match complet" (Emergent Push — Itération 11)

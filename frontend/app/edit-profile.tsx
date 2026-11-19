@@ -173,12 +173,12 @@ export default function EditProfile() {
             </View>
           </View>
 
-          <Text style={styles.label}>Téléphone</Text>
+          <Text style={styles.label}>Téléphone <Text style={styles.optional}>facultatif</Text></Text>
           <TextInput testID="edit-phone" value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" placeholder="06 12 34 56 78" placeholderTextColor={colors.onSurfaceTertiary} />
 
           <View style={styles.rowFields}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Date de naissance</Text>
+              <Text style={styles.label}>Naissance <Text style={styles.optional}>facultatif</Text></Text>
               <TextInput testID="edit-birth" value={birth} onChangeText={setBirth} style={styles.input} keyboardType="numbers-and-punctuation" placeholder="JJ/MM/AAAA" placeholderTextColor={colors.onSurfaceTertiary} />
             </View>
             <View style={{ flex: 1 }}>
@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
   },
   hint: { fontSize: type.sm, color: colors.onSurfaceTertiary },
   label: { fontSize: type.base, fontWeight: "700", color: colors.onSurface, marginTop: spacing.sm },
+  optional: { fontSize: 11, color: colors.onSurfaceTertiary, fontWeight: "600" },
   publicTag: { fontSize: 11, color: colors.brandPrimary, fontWeight: "800" },
   hintTag: { fontSize: 11, color: colors.info, fontWeight: "800" },
   subHint: { fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2, marginBottom: spacing.xs },

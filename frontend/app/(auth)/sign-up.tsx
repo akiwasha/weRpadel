@@ -7,19 +7,6 @@ import { Image } from "expo-image";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius, type } from "@/src/lib/theme";
 
-// "JJ/MM/AAAA" -> "AAAA-MM-JJ" (returns null if invalid)
-function toIsoDate(input: string): string | null {
-  const m = input.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  const day = +dd, month = +mm, year = +yyyy;
-  const d = new Date(year, month - 1, day);
-  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
-  const now = new Date();
-  if (year < 1900 || d > now) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 export default function SignUp() {
   const { signUp } = useAuth();
   const router = useRouter();
@@ -27,8 +14,6 @@ export default function SignUp() {
   const [lastName, setLastName] = useState("");
   const [pseudo, setPseudo] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [birth, setBirth] = useState("");
   const [city, setCity] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -40,9 +25,6 @@ export default function SignUp() {
     if (lastName.trim().length < 1) return setErr("Indique ton nom");
     if (pseudo.trim().length < 2) return setErr("Pseudo trop court (2 caractères min)");
     if (!email.includes("@")) return setErr("Email invalide");
-    if (phone.trim().length < 6) return setErr("Numéro de téléphone invalide");
-    const iso = toIsoDate(birth);
-    if (!iso) return setErr("Date de naissance invalide (JJ/MM/AAAA)");
     if (city.trim().length < 1) return setErr("Indique ta ville de résidence");
     if (password.length < 6) return setErr("Mot de passe : 6 caractères min");
     setLoading(true);
@@ -53,8 +35,6 @@ export default function SignUp() {
         pseudo: pseudo.trim(),
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        phone: phone.trim(),
-        birth_date: iso,
         city: city.trim(),
       });
       router.replace("/(tabs)");
@@ -78,7 +58,7 @@ export default function SignUp() {
           <View style={styles.privacyBanner}>
             <Ionicons name="shield-checkmark" size={18} color={colors.brandPrimary} />
             <Text style={styles.privacyText}>
-              Seul ton <Text style={{ fontWeight: "800" }}>pseudonyme</Text> est visible par les autres joueurs. Prénom, nom, email, téléphone, date de naissance et ville restent privés.
+              Seul ton <Text style={{ fontWeight: "800" }}>pseudonyme</Text> est visible par les autres joueurs. Prénom, nom, email et ville restent privés.
             </Text>
           </View>
 
@@ -131,42 +111,15 @@ export default function SignUp() {
               keyboardType="email-address"
             />
 
-            <Text style={styles.label}>Téléphone</Text>
+            <Text style={styles.label}>Ville</Text>
             <TextInput
-              testID="signup-phone-input"
+              testID="signup-city-input"
               style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="06 12 34 56 78"
+              value={city}
+              onChangeText={setCity}
+              placeholder="Paris"
               placeholderTextColor={colors.onSurfaceTertiary}
-              keyboardType="phone-pad"
             />
-
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Date de naissance</Text>
-                <TextInput
-                  testID="signup-birth-input"
-                  style={styles.input}
-                  value={birth}
-                  onChangeText={setBirth}
-                  placeholder="JJ/MM/AAAA"
-                  placeholderTextColor={colors.onSurfaceTertiary}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Ville</Text>
-                <TextInput
-                  testID="signup-city-input"
-                  style={styles.input}
-                  value={city}
-                  onChangeText={setCity}
-                  placeholder="Paris"
-                  placeholderTextColor={colors.onSurfaceTertiary}
-                />
-              </View>
-            </View>
 
             <Text style={styles.label}>Mot de passe</Text>
             <TextInput

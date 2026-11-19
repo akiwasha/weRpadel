@@ -25,7 +25,7 @@ export type User = {
 
 export type SignUpInput = {
   email: string; password: string; pseudo: string;
-  first_name: string; last_name: string; phone: string; birth_date: string; city: string;
+  first_name: string; last_name: string; city: string;
 };
 
 type Ctx = {

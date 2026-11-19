@@ -112,8 +112,8 @@ Non, l'appli ne contient pas d'annonces.
 | Informations personnelles | Nom | Obligatoire | Fonctionnalité de l'appli, Gestion du compte |
 | Informations personnelles | Adresse e-mail | Obligatoire | Gestion du compte |
 | Informations personnelles | ID utilisateur | Obligatoire | Fonctionnalité de l'appli, Gestion du compte |
-| Informations personnelles | Numéro de téléphone | Obligatoire | Gestion du compte |
-| Informations personnelles | Autres infos (date de naissance, niveau de jeu, pseudo, bio) | Obligatoire | Fonctionnalité de l'appli |
+| Informations personnelles | Numéro de téléphone | Facultatif | Gestion du compte |
+| Informations personnelles | Autres infos (pseudo obligatoire ; date de naissance, niveau de jeu, bio facultatifs) | Obligatoire | Fonctionnalité de l'appli |
 | Position | Position approximative (ville et région saisies) | Obligatoire | Fonctionnalité de l'appli |
 | Informations financières | Historique des achats | Facultatif | Fonctionnalité de l'appli |
 | Messages | Autres messages dans l'appli | Facultatif | Fonctionnalité de l'appli |

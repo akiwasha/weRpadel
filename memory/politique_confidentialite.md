@@ -16,8 +16,8 @@ Lorsque vous créez un compte et utilisez weRpadel, nous collectons :
 - Adresse e-mail
 - Pseudonyme (public)
 - Nom et prénom (privés)
-- Date de naissance / âge (privé)
-- Numéro de téléphone (privé)
+- Date de naissance (privée, facultatif)
+- Numéro de téléphone (privé, facultatif)
 - Ville et région préférée
 - Niveau de jeu et bio (facultatif)
 - Photo de profil (facultatif)
