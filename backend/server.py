@@ -457,11 +457,20 @@ async def fetch_forecast(lat: float, lon: float, days: int = 7) -> list:
     return out
 
 # ============ PUSH NOTIFICATIONS (Emergent managed) ============
+# The push relay HTML-escapes title/message, and the escaped entities show up
+# verbatim on the phone ("d&#x27;ouvrir"). Swap the characters it escapes for
+# look-alikes it leaves alone.
+_PUSH_LOOKALIKES = str.maketrans({"'": "’", '"': "”", "&": "＆", "<": "‹", ">": "›"})
+
+def push_text(s: str) -> str:
+    return str(s).translate(_PUSH_LOOKALIKES)
+
 async def send_push(recipients: List[str], data: dict, idempotency_key: Optional[str] = None) -> None:
     if not recipients:
         return
     if "title" not in data or "message" not in data:
         raise ValueError("data must include title and message")
+    data = {**data, "title": push_text(data["title"]), "message": push_text(data["message"])}
     payload: dict = {"recipients": recipients[:100], "data": data}
     if idempotency_key:
         payload["$idempotency_key"] = idempotency_key
